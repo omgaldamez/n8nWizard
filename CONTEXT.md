@@ -3,7 +3,7 @@
 
 ---
 
-## 1. QUÉ ES ESTE PROYECTO
+## 1. QUÉ ES ESTE PROYECTO 
 
 `arquitectura-agentes7.html` es una herramienta visual single-file (HTML + CSS + JS puro, sin dependencias externas) para que los participantes del programa **Profesionalización Creativa con IA (PCIA)** de CENTRO Educación Continua (CDMX) diseñen la arquitectura de su agente de IA antes de construirla en n8n.
 
