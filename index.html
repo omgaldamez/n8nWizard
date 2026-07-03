@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arquitectura de Agentes IA — PCIA M4</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070D1B;--sur:#111827;--sur2:#1F2937;--bdr:#374151;
+  --txt:#F9FAFB;--muted:#9CA3AF;--acc:#7C3AED;--accl:#8B5CF6;
+  --entrada:#3B82F6;--proceso:#7C3AED;--mem:#10B981;--rag:#F59E0B;
+  --modelo:#EC4899;--salida:#6366F1;--obs:#EAB308;--datos:#14B8A6;
+}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,sans-serif;height:100vh;overflow:hidden;font-size:13px}
+#app{display:grid;grid-template-rows:48px 1fr;grid-template-columns:220px 1fr;height:100vh}
+
+/* ── TOOLBAR ── */
+#tb{grid-column:1/-1;background:var(--sur);border-bottom:1px solid var(--bdr);display:flex;align-items:center;padding:0 14px;gap:6px}
+.logo{font-size:11px;font-weight:800;color:var(--accl);letter-spacing:.12em;text-transform:uppercase;margin-right:8px;white-space:nowrap}
+.sep{width:1px;height:22px;background:var(--bdr);margin:0 2px}
+.btn{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);padding:4px 11px;border-radius:5px;cursor:pointer;font-size:11px;white-space:nowrap;transition:background .12s}
+.btn:hover{background:var(--bdr)}
+.btn.on{background:var(--acc);border-color:var(--accl)}
+.btn.pri{background:var(--acc);border-color:var(--accl)}
+.btn.pri:hover{background:var(--accl)}
+.btn.del{border-color:#EF4444}.btn.del:hover{background:#EF4444}
+#tb-r{margin-left:auto;display:flex;align-items:center;gap:8px}
+#mode-lbl{font-size:10px;color:var(--muted)}
+
+/* ── PALETTE ── */
+#pal{background:var(--sur);border-right:1px solid var(--bdr);overflow-y:auto;padding:10px 6px}
+.ps h3{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;padding:0 6px;margin:10px 0 5px}
+.pi{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:11px;border:1px solid transparent}
+.pi:hover{background:var(--sur2);border-color:var(--bdr)}
+.pdot{width:8px;height:8px;border-radius:3px;flex-shrink:0}
+
+/* ── CANVAS ── */
+#cwrap{position:relative;overflow:hidden;background:var(--bg);background-image:radial-gradient(circle,#1e293b 1px,transparent 1px);background-size:28px 28px}
+#cv{display:block;cursor:crosshair}
+#cv.sel-mode{cursor:default}
+#cv.conn-mode{cursor:crosshair}
+
+/* ── LEGEND ── */
+#legend{position:absolute;right:12px;top:12px;background:rgba(17,24,39,.92);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;font-size:10px;pointer-events:none}
+#legend h4{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.li{display:flex;align-items:center;gap:6px;padding:1px 0}
+.ldot{width:9px;height:9px;border-radius:2px}
+
+/* ── STATUS ── */
+#status{position:absolute;bottom:0;left:0;right:0;height:26px;background:var(--sur);border-top:1px solid var(--bdr);display:flex;align-items:center;padding:0 12px;font-size:10px;color:var(--muted);gap:16px;pointer-events:none;z-index:5}
+
+/* ── MODAL ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:100}
+.mo{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:26px;width:540px;max-height:85vh;overflow-y:auto}
+.mo.wide{width:660px}
+.mo h2{font-size:17px;font-weight:700;margin-bottom:3px}
+.mo .sub{font-size:12px;color:var(--muted);margin-bottom:20px}
+.mof{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--bdr)}
+
+/* ── WIZARD ── */
+.wdots{display:flex;gap:5px;margin-bottom:20px}
+.wd{width:30px;height:3px;border-radius:2px;background:var(--bdr)}
+.wd.done{background:var(--acc)}.wd.cur{background:var(--accl)}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pc{border:1px solid var(--bdr);border-radius:8px;padding:12px;cursor:pointer;transition:all .12s}
+.pc:hover{border-color:var(--accl);background:var(--sur2)}
+.pc.sel{border-color:var(--acc);background:rgba(124,58,237,.12)}
+.pico{font-size:18px;margin-bottom:5px}
+.plbl{font-size:12px;font-weight:600;margin-bottom:3px}
+.pdsc{font-size:10px;color:var(--muted);line-height:1.4}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.ci{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;transition:all .12s}
+.ci:hover{border-color:var(--accl)}.ci.sel{border-color:var(--acc);background:rgba(124,58,237,.12)}
+.trow{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid var(--bdr);border-radius:7px;margin-bottom:8px;cursor:pointer}
+.trow:hover{border-color:var(--accl)}
+.tlbl{font-size:13px;font-weight:500}.tsub{font-size:11px;color:var(--muted)}
+.tog{width:38px;height:20px;border-radius:10px;background:var(--bdr);position:relative;flex-shrink:0;transition:background .2s}
+.tog.on{background:var(--acc)}
+.tog::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s}
+.tog.on::after{left:21px}
+.rgrid{display:grid;gap:7px}
+.ri{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;transition:all .12s}
+.ri:hover{border-color:var(--accl)}.ri.sel{border-color:var(--acc);background:rgba(124,58,237,.12)}
+.ri .rico{font-size:16px}
+.ri .rlbl{font-weight:600;font-size:12px}.ri .rdsc{font-size:10px;color:var(--muted)}
+
+/* ── PRICING ── */
+.ptbl{width:100%;border-collapse:collapse;font-size:11px}
+.ptbl th{text-align:left;padding:7px 10px;border-bottom:1px solid var(--bdr);color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:600}
+.ptbl td{padding:6px 10px;border-bottom:1px solid rgba(55,65,81,.4)}
+.ptbl tr:hover td{background:var(--sur2)}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700}
+.pnote{font-size:10px;color:var(--muted);margin-top:10px;font-style:italic}
+
+/* ── EXPORT ── */
+.exptxt{font-family:monospace;font-size:11px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;padding:12px;max-height:340px;overflow-y:auto;white-space:pre-wrap;color:#a5b4fc;line-height:1.6}
+
+/* ── SUBWORKFLOW ── */
+.swrow{display:flex;gap:7px;align-items:center;margin-bottom:6px}
+.swin{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);padding:5px 9px;border-radius:5px;font-size:11px;flex:1;outline:none}
+.swin:focus{border-color:var(--accl)}
+.swpre{font-family:monospace;font-size:10px;background:var(--bg);border:1px solid var(--bdr);border-radius:5px;padding:10px;color:#a5b4fc;margin-top:10px;white-space:pre;overflow-x:auto}
+/* ── TABS ── */
+.tab-btn{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:0 14px;height:48px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.04em;transition:all .15s}
+.tab-btn:hover{color:var(--txt)}
+.tab-btn.on{color:var(--accl);border-bottom-color:var(--accl)}
+/* ── SEQ WRAP ── */
+#seq-wrap{display:none;overflow:auto;background:var(--bg);background-image:radial-gradient(circle,#1e293b 1px,transparent 1px);background-size:28px 28px;grid-column:2;grid-row:2}
+#cwrap{grid-column:2;grid-row:2}
+/* ── SEQ DIAGRAM ── */
+.seq-actor{cursor:default}
+.seq-msg-line{stroke-width:1.8}
+.seq-msg-ret{stroke-dasharray:7,4;stroke-width:1.3}
+/* ── ZOOM CONTROLS ── */
+#zoom-ctrl{position:absolute;right:12px;bottom:36px;display:flex;flex-direction:column;gap:4px;z-index:10;align-items:center}
+#zoom-ctrl .btn{width:28px;padding:4px 0;text-align:center;font-weight:700;font-size:13px}
+/* ── CONTRACT BADGE ── */
+.contract-badge{cursor:pointer}
+.contract-badge:hover rect{filter:brightness(1.4)}
+/* ── MEMORY PANEL ── */
+#mem-panel{position:absolute;left:230px;bottom:36px;max-width:380px;background:rgba(17,24,39,.96);border:1px solid var(--mem);border-radius:8px;padding:12px 14px;font-size:10px;z-index:8;display:none}
+/* ── NODE TOOLTIP ── */
+#node-tip{position:fixed;display:none;max-width:230px;background:rgba(17,24,39,.97);border:1px solid var(--bdr);border-radius:6px;padding:8px 10px;font-size:10.5px;line-height:1.45;z-index:60;pointer-events:none;color:var(--txt);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+#node-tip .tt-l{font-weight:700;margin-bottom:3px}
+#node-tip .tt-d{color:var(--muted)}
+/* ── MINIMAP ── */
+#minimap{position:absolute;left:12px;bottom:36px;background:rgba(17,24,39,.85);border:1px solid var(--bdr);border-radius:6px;z-index:9;overflow:hidden}
+#minimap svg{display:block;cursor:pointer}
+#mm-toggle{position:absolute;right:2px;top:2px;background:rgba(31,41,55,.9);border:1px solid var(--bdr);color:var(--muted);border-radius:4px;font-size:9px;padding:1px 6px;cursor:pointer;line-height:1.4}
+#mm-toggle:hover{color:var(--txt)}
+#minimap.mm-collapsed svg{display:none}
+#minimap.mm-collapsed{background:transparent;border:none}
+#minimap.mm-collapsed #mm-toggle{position:static;display:block;padding:3px 9px;font-size:10px}
+#mem-panel h4{font-size:11px;font-weight:700;color:var(--mem);margin-bottom:8px}
+#mem-panel pre{font-family:monospace;color:#a5b4fc;white-space:pre-wrap;line-height:1.5;font-size:9.5px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<div id="tb">
+  <span class="logo">Arquitectura IA · M4</span>
+  <div class="sep"></div>
+  <button class="tab-btn on" id="tab-arch" onclick="setTab('arch')">⬡ Arquitectura</button>
+  <button class="tab-btn" id="tab-seq" onclick="setTab('seq')">↔ Secuencia</button>
+  <div class="sep"></div>
+  <span id="arch-ctrls" style="display:flex;align-items:center;gap:6px">
+    <button class="btn" onclick="showWiz()">⬡ Plantillas</button>
+    <button class="btn" id="btn-conn" onclick="toggleConn()">⤳ Conectar</button>
+    <button class="btn del" onclick="delSel()">✕ Eliminar</button>
+    <button class="btn" onclick="clearAll()">⊘ Limpiar</button>
+    <div class="sep"></div>
+    <button class="btn" onclick="saveDiagram()">⬇ Guardar</button>
+    <button class="btn" onclick="document.getElementById('load-file').click()">⬆ Cargar</button>
+    <input type="file" id="load-file" accept=".json,application/json" style="display:none">
+    <div class="sep"></div>
+    <button class="btn pri" onclick="doExpSVG()">↓ SVG</button>
+  </span>
+  <span id="seq-ctrls" style="display:none;align-items:center;gap:6px">
+    <button class="btn pri" onclick="doExpSeqSVG()">↓ SVG Secuencia</button>
+  </span>
+  <button class="btn pri" onclick="showExpMD()">⬡ Texto / Miro</button>
+  <div class="sep"></div>
+  <button class="btn" onclick="showPric()">$ Pricing</button>
+  <button class="btn" onclick="showN8N()" style="border-color:#F59E0B;color:#F59E0B">⬡ Prompt n8n</button>
+  <button class="btn" onclick="show('ov-sql')" style="border-color:#10B981;color:#10B981">📋 SQL</button>
+  <div id="tb-r"><span id="mode-lbl">Modo: Selección</span></div>
+</div>
+
+<div id="pal"></div>
+
+<div id="cwrap">
+  <svg id="cv" width="100%" height="100%" class="sel-mode">
+    <defs>
+      <marker id="ah" markerWidth="9" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0,9 3,0 6" style="fill:currentColor"/>
+      </marker>
+    </defs>
+    <g id="canvas-root">
+      <g id="cl"></g>
+      <g id="nl"></g>
+    </g>
+  </svg>
+  <div id="zoom-ctrl">
+    <button class="btn" onclick="zoom(1.2)" title="Acercar">+</button>
+    <button class="btn" onclick="zoom(1/1.2)" title="Alejar">−</button>
+    <button class="btn" onclick="resetView()" title="Restablecer vista">⌂</button>
+    <span id="zoom-lbl" style="font-size:9px;color:var(--muted);text-align:center">100%</span>
+  </div>
+  <div id="legend">
+    <h4>Capas</h4>
+    <div class="li"><div class="ldot" style="background:var(--entrada)"></div>Entrada</div>
+    <div class="li"><div class="ldot" style="background:var(--proceso)"></div>Proceso</div>
+    <div class="li"><div class="ldot" style="background:var(--mem)"></div>Memoria</div>
+    <div class="li"><div class="ldot" style="background:var(--rag)"></div>RAG · Qdrant</div>
+    <div class="li"><div class="ldot" style="background:var(--modelo)"></div>LLM</div>
+    <div class="li"><div class="ldot" style="background:var(--salida)"></div>Salida · Router</div>
+    <div class="li"><div class="ldot" style="background:var(--obs)"></div>Observabilidad</div>
+    <div class="li"><div class="ldot" style="background:var(--datos)"></div>Almacenamiento</div>
+  </div>
+  <div id="status"><span id="st-msg">Usa Plantillas para comenzar o arrastra componentes desde el panel izquierdo</span></div>
+  <div id="mem-panel"><h4></h4><pre></pre><button class="btn" onclick="hideMemPanel()" style="margin-top:8px;font-size:10px;padding:3px 10px">Cerrar</button></div>
+  <div id="minimap">
+    <svg id="mm-svg" width="160" height="100"></svg>
+    <button id="mm-toggle" onclick="toggleMinimap()" title="Colapsar mini-mapa">▾</button>
+  </div>
+</div>
+<div id="node-tip"><div class="tt-l"></div><div class="tt-d"></div></div>
+
+<!-- SEQUENCE DIAGRAM -->
+<div id="seq-wrap">
+  <svg id="seq-cv" style="display:block"></svg>
+</div>
+</div>
+
+<!-- WIZARD -->
+<div class="ov" id="ov-wiz">
+  <div class="mo" style="width:580px"><div id="wiz-body"></div></div>
+</div>
+
+<!-- PRICING -->
+<div class="ov" id="ov-pric" style="display:none">
+  <div class="mo wide">
+    <h2>Pricing LLM por 1M tokens</h2>
+    <p class="sub">USD aproximado — verificar precios vigentes en el sitio de cada proveedor</p>
+    <table class="ptbl" id="ptbl"></table>
+    <p class="pnote">* Precios de referencia mediados 2025–2026. Gemini y Llama via OpenRouter pueden variar según nivel de uso.</p>
+    <div class="mof"><button class="btn pri" onclick="hide('ov-pric')">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- EXPORT -->
+<div class="ov" id="ov-exp" style="display:none">
+  <div class="mo wide">
+    <h2>Exportar descripción</h2>
+    <p class="sub">Markdown listo para pegar en Miro o usar como contexto de arquitectura en Claude / n8n</p>
+    <pre class="exptxt" id="exp-content"></pre>
+    <div class="mof">
+      <button class="btn" onclick="copyExp()">Copiar</button>
+      <button class="btn pri" onclick="hide('ov-exp')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBWORKFLOW -->
+<div class="ov" id="ov-sw" style="display:none">
+  <div class="mo">
+    <h2>Sub-workflow — Contrato JSON</h2>
+    <p class="sub">Define las entradas y salidas. Esto genera el contrato de interfaz para n8n.</p>
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Nombre</label>
+      <input class="swin" id="sw-name" type="text" placeholder="ej. CerebroDeAgente" style="width:100%">
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:7px">
+        <span style="font-size:11px;font-weight:600">Entradas</span>
+        <button class="btn" style="padding:2px 9px;font-size:10px" onclick="addSWF('i')">+ Campo</button>
+      </div>
+      <div id="sw-in"></div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:7px">
+        <span style="font-size:11px;font-weight:600">Salidas</span>
+        <button class="btn" style="padding:2px 9px;font-size:10px" onclick="addSWF('o')">+ Campo</button>
+      </div>
+      <div id="sw-out"></div>
+    </div>
+    <pre class="swpre" id="sw-pre"></pre>
+    <div class="mof">
+      <button class="btn" onclick="hide('ov-sw')">Cancelar</button>
+      <button class="btn pri" onclick="saveSW()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- N8N PROMPT -->
+<div class="ov" id="ov-n8n" style="display:none">
+  <div class="mo wide">
+    <h2>Prompt para generar flujo n8n</h2>
+    <p class="sub">Copia este prompt y pégalo en Claude. Incluye tu arquitectura y todas las instrucciones del stack M4.</p>
+    <pre class="exptxt" id="n8n-content" style="max-height:400px"></pre>
+    <div class="mof">
+      <button class="btn" onclick="copyN8N()">Copiar</button>
+      <button class="btn pri" onclick="hide('ov-n8n')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTRACT EDITOR -->
+<div class="ov" id="ov-contract" style="display:none">
+  <div class="mo">
+    <h2>Contrato JSON — campos que pasan</h2>
+    <p class="sub" id="contract-subtitle">Define los campos del Set node entre estos dos componentes.</p>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600">Campos</span>
+        <button class="btn" style="padding:3px 10px;font-size:10px" onclick="addContractField()">+ Campo</button>
+      </div>
+      <div id="contract-fields"></div>
+    </div>
+    <pre class="swpre" id="contract-preview"></pre>
+    <div class="mof">
+      <button class="btn" onclick="hide('ov-contract')">Cancelar</button>
+      <button class="btn pri" onclick="saveContract()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MEMORY / SQL GUIDE -->
+<div class="ov" id="ov-sql" style="display:none">
+  <div class="mo wide">
+    <h2>Guía de meta-prompting SQL</h2>
+    <p class="sub">Patrones para generar o modificar tablas en Supabase usando un LLM. Siempre consulta information_schema primero.</p>
+    <div style="max-height:480px;overflow-y:auto">
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--accl);margin-bottom:6px">PASO 1 — Obtener esquema real (ejecutar primero)</div>
+        <pre class="exptxt" style="font-size:9.5px">SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'tu_tabla'
+ORDER BY ordinal_position;</pre>
+        <div style="font-size:10px;color:var(--muted);margin-top:5px">Copia el output y pégalo en el prompt de más abajo.</div>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--mem);margin-bottom:6px">PROMPT — Crear tabla nueva</div>
+        <pre class="exptxt" style="font-size:9.5px">Ayúdame a crear una tabla en PostgreSQL (Supabase) para [descripción de lo que guarda la tabla].
+
+Requisitos:
+- La llave primaria es session_id (TEXT) porque usamos el chat.id de Telegram
+- Necesito guardar [campo1, campo2, campo3...]
+- Los timestamps deben ser TIMESTAMPTZ (no DATE ni TIMESTAMP)
+- México es UTC-6 permanente, los timestamps se guardan en UTC
+- Incluir IF NOT EXISTS
+- Usar nombres en snake_case
+
+Genera solo el SQL, sin explicación.</pre>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--obs);margin-bottom:6px">PROMPT — Modificar tabla existente</div>
+        <pre class="exptxt" style="font-size:9.5px">Tengo una tabla en Supabase con esta estructura:
+
+[PEGA AQUÍ EL OUTPUT DEL NODO information_schema]
+
+Necesito [agregar la columna X de tipo Y / cambiar el tipo de Z / agregar índice en W].
+
+Genera el ALTER TABLE correspondiente. Solo SQL, sin explicación.</pre>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--rag);margin-bottom:6px">PROMPT — Generar UPSERT o INSERT</div>
+        <pre class="exptxt" style="font-size:9.5px">Tengo una tabla en Supabase con esta estructura:
+
+[PEGA AQUÍ EL OUTPUT DEL NODO information_schema]
+
+Necesito un INSERT que:
+- Registre al usuario si no existe (usar ON CONFLICT DO UPDATE)
+- Actualice ultima_interaccion = NOW() en cada mensaje
+- El session_id viene de {{ $json.message.chat.id }} (Telegram)
+- El campo status debe quedar en blanco si es nuevo usuario
+
+Genera solo el SQL con las expresiones n8n en doble llave.</pre>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--modelo);margin-bottom:6px">PROMPT — Generar SELECT con filtros</div>
+        <pre class="exptxt" style="font-size:9.5px">Tengo una tabla en Supabase con esta estructura:
+
+[PEGA AQUÍ EL OUTPUT DEL NODO information_schema]
+
+Necesito un SELECT que:
+- Devuelva usuarios inactivos desde hace más de [N] horas
+- La condición es: ultima_interaccion < NOW() - INTERVAL '[N] hours'
+- También que recordatorio = FALSE
+- Ordenados del más antiguo al más reciente
+
+Genera solo el SQL.</pre>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--entrada);margin-bottom:6px">TABLA REFERENCIA — registro_usuarios</div>
+        <pre class="exptxt" style="font-size:9.5px">CREATE TABLE registro_usuarios (
+    session_id          TEXT PRIMARY KEY,      -- chat.id de Telegram (TEXT, no integer)
+    primer_contacto     TIMESTAMPTZ,           -- se escribe una sola vez
+    ultima_interaccion  TIMESTAMPTZ,           -- se actualiza en cada mensaje
+    status              TEXT,                  -- último intent: CONVERSACION/FAQ/ACCION
+    recordatorio        BOOLEAN DEFAULT FALSE, -- re-engagement enviado
+    timezone            TEXT DEFAULT 'America/Mexico_City'
+);
+
+-- UPSERT por mensaje:
+INSERT INTO registro_usuarios (session_id, primer_contacto, ultima_interaccion)
+VALUES ('{{ $json.telegram_id }}', NOW(), NOW())
+ON CONFLICT (session_id)
+DO UPDATE SET ultima_interaccion = NOW();
+
+-- SELECT EXISTS (siempre devuelve 1 fila boolean, sin Always Output Data):
+SELECT EXISTS (
+    SELECT 1 FROM registro_usuarios
+    WHERE session_id = '{{ $json.telegram_id }}'
+) AS usuario_existe;</pre>
+      </div>
+    </div>
+    <div class="mof"><button class="btn pri" onclick="hide('ov-sql')">Cerrar</button></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// COMPONENT REGISTRY
+// ════════════════════════════════════════════════════════════
+const C = {
+  telegram:     {l:'Telegram Bot',       cat:'entrada', col:'#3B82F6', ic:'💬', d:'Canal mensajería Telegram'},
+  webhook_in:   {l:'Webhook Entrada',    cat:'entrada', col:'#3B82F6', ic:'🔗', d:'Datos desde sistema externo'},
+  web_ui:       {l:'Interfaz Web',       cat:'entrada', col:'#3B82F6', ic:'🌐', d:'Formulario o chat en navegador'},
+  trigger:      {l:'Trigger',            cat:'entrada', col:'#3B82F6', ic:'▶', d:'Disparo manual de prueba'},
+  normalizador: {l:'Normalizador',       cat:'proceso', col:'#6B7280', ic:'⚙', d:'Estandariza el mensaje de entrada'},
+  cerebro:      {l:'Cerebro',            cat:'proceso', col:'#7C3AED', ic:'🧠', d:'Orquestador principal del agente'},
+  subworkflow:  {l:'Sub-workflow',       cat:'proceso', col:'#7C3AED', ic:'📦', d:'Cerebro encapsulado con contrato JSON', sw:true},
+  orquestador:  {l:'Orquestador',        cat:'proceso', col:'#7C3AED', ic:'🎯', d:'Distribuye tareas a agentes especializados'},
+  agente_esp:   {l:'Agente Especializado',cat:'proceso',col:'#8B5CF6', ic:'🤖', d:'Agente con rol específico'},
+  memoria:      {l:'Memoria',            cat:'fuente',  col:'#10B981', ic:'🗄', d:'Historial de conversación (Supabase)'},
+  perfil:       {l:'Perfil de usuario',  cat:'fuente',  col:'#10B981', ic:'👤', d:'Datos del usuario (Supabase)'},
+  rag_naive:    {l:'RAG Naive',          cat:'fuente',  col:'#F59E0B', ic:'📚', d:'Búsqueda por similitud coseno (Qdrant)'},
+  rag_enhanced: {l:'RAG Enhanced',       cat:'fuente',  col:'#D97706', ic:'📚+', d:'Búsqueda con filtros de payload (Qdrant)'},
+  rag_multi:    {l:'RAG Multimodal',     cat:'fuente',  col:'#B45309', ic:'🖼', d:'RAG con análisis de imágenes (Gemini Vision)'},
+  llm:          {l:'LLM',               cat:'modelo',  col:'#EC4899', ic:'✦', d:'Modelo de lenguaje'},
+  llm_chain:    {l:'LLM Chain',         cat:'modelo',  col:'#EC4899', ic:'⛓', d:'Llamada LLM simple sin herramientas (Basic LLM Chain)'},
+  router_out:   {l:'Router de Salida',  cat:'salida',  col:'#6366F1', ic:'🔀', d:'Enruta respuesta por canal de origen'},
+  resp_tel:     {l:'Resp. Telegram',    cat:'salida',  col:'#6366F1', ic:'💬↑', d:'Respuesta al usuario por Telegram'},
+  resp_http:    {l:'Respuesta HTTP',    cat:'salida',  col:'#6366F1', ic:'📤', d:'Respuesta a webhook o interfaz web'},
+  webhook_out:  {l:'Webhook Salida',    cat:'salida',  col:'#EF4444', ic:'🔗↑', d:'Llama a API o sistema externo'},
+  langfuse:     {l:'Langfuse',          cat:'obs',     col:'#EAB308', ic:'👁', d:'Trazas, métricas y observabilidad'},
+  supabase:     {l:'Supabase / PG',     cat:'datos',   col:'#14B8A6', ic:'🗃', d:'Base de datos relacional'},
+  qdrant:       {l:'Qdrant',            cat:'datos',   col:'#F59E0B', ic:'⬡', d:'Base vectorial para RAG'},
+  custom:       {l:'Personalizado',     cat:'custom',  col:'#64748B', ic:'◆', d:'Componente personalizado'},
+  // ── Patrones M4 S3-S5 ──
+  clasificador: {l:'Clasificador',      cat:'proceso', col:'#7C3AED', ic:'🔍', d:'Agente clasificador de intención (temp 0.1, max 20 tok)'},
+  if_node:      {l:'IF Condicional',    cat:'proceso', col:'#EA580C', ic:'⤵',  d:'Bifurcación — reemplaza Switch en n8n v2.1.4'},
+  set_contrato: {l:'Set (Contrato)',    cat:'proceso', col:'#6B7280', ic:'📝', d:'Define campos que pasan entre nodos — contrato JSON'},
+  registro_usu: {l:'Registro Usuarios',cat:'datos',   col:'#14B8A6', ic:'📋', d:'Tabla registro_usuarios — una fila por usuario, UPSERT'},
+  schedule:     {l:'Schedule Trigger', cat:'entrada', col:'#059669', ic:'⏰', d:'Disparo programado — re-engagement o tareas periódicas'},
+  code_node:    {l:'Code Node (JS)',   cat:'proceso', col:'#6B7280', ic:'</>',d:'Lógica JS — chunking, transformar datos, mensajes'},
+  // ── Google Workspace ──
+  gdrive_in:    {l:'Google Drive',     cat:'entrada', col:'#34A853', ic:'📂', d:'Leer/descargar archivos desde Google Drive'},
+  gcal_in:      {l:'Google Calendar',  cat:'entrada', col:'#1A73E8', ic:'📅', d:'Leer eventos, trigger por evento de calendario'},
+  gmail_in:     {l:'Gmail Entrada',    cat:'entrada', col:'#EA4335', ic:'✉', d:'Leer correos, trigger por email recibido'},
+  gdrive_out:   {l:'Drive (escribir)', cat:'salida',  col:'#34A853', ic:'📂↑',d:'Crear o actualizar archivos en Google Drive'},
+  gcal_out:     {l:'Calendar (crear)', cat:'salida',  col:'#1A73E8', ic:'📅↑',d:'Crear o actualizar eventos en Google Calendar'},
+  gmail_out:    {l:'Gmail (enviar)',   cat:'salida',  col:'#EA4335', ic:'✉↑', d:'Enviar correos desde Gmail'},
+};
+
+// ════════════════════════════════════════════════════════════
+// PATTERNS
+// ════════════════════════════════════════════════════════════
+const NW=170, NH=58;
+const CX=550;  // canvas center X
+
+const PAT = [
+  {id:'simple',    ico:'⬡', lbl:'Agente simple',           dsc:'Prompt → LLM → Respuesta. Sin memoria ni RAG.',
+   nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'cerebro',x:CX,y:310},{t:'llm',x:CX,y:435},{t:'resp_tel',x:CX,y:560}],
+   conns:[[0,1],[1,2],[2,3],[3,4]]},
+  {id:'memoria',   ico:'🗄', lbl:'Con memoria',              dsc:'Agente simple + historial de conversación persistente.',
+   nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'cerebro',x:CX,y:310},{t:'memoria',x:CX+240,y:310},{t:'llm',x:CX,y:435},{t:'resp_tel',x:CX,y:560}],
+   conns:[[0,1],[1,2],[2,3],[3,2],[2,4],[4,5]]},
+  {id:'rag_naive', ico:'📚', lbl:'RAG naive',                dsc:'Búsqueda vectorial básica antes de responder.',
+   nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'cerebro',x:CX,y:310},{t:'rag_naive',x:CX+240,y:310},{t:'llm',x:CX,y:435},{t:'resp_tel',x:CX,y:560}],
+   conns:[[0,1],[1,2],[2,3],[3,2],[2,4],[4,5]]},
+  {id:'rag_enh',   ico:'📚+', lbl:'RAG enhanced + memoria', dsc:'Búsqueda con filtros de payload + historial de usuario.',
+   nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'cerebro',x:CX,y:310},{t:'memoria',x:CX-240,y:310},{t:'rag_enhanced',x:CX+240,y:310},{t:'llm',x:CX,y:435},{t:'langfuse',x:CX+240,y:435},{t:'resp_tel',x:CX,y:560}],
+   conns:[[0,1],[1,2],[2,3],[3,2],[2,4],[4,2],[2,5],[5,6],[5,7]]},
+  {id:'rag_multi', ico:'🖼', lbl:'RAG multimodal',           dsc:'Base de conocimiento con análisis de imágenes (Gemini Vision).',
+   nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'cerebro',x:CX,y:310},{t:'rag_multi',x:CX+240,y:310},{t:'llm',x:CX,y:435},{t:'resp_tel',x:CX,y:560}],
+   conns:[[0,1],[1,2],[2,3],[3,2],[2,4],[4,5]]},
+  {id:'multichan', ico:'📦', lbl:'Multi-canal + sub-workflow',dsc:'Cerebro único atendiendo múltiples canales vía sub-workflow.',
+   nodes:[{t:'telegram',x:CX-220,y:60},{t:'webhook_in',x:CX,y:60},{t:'web_ui',x:CX+220,y:60},{t:'normalizador',x:CX,y:185},{t:'subworkflow',x:CX,y:310},{t:'memoria',x:CX-240,y:310},{t:'rag_enhanced',x:CX,y:435},{t:'llm',x:CX+240,y:310},{t:'langfuse',x:CX+240,y:435},{t:'router_out',x:CX,y:560},{t:'resp_tel',x:CX-110,y:685},{t:'resp_http',x:CX+110,y:685}],
+   conns:[[0,3],[1,3],[2,3],[3,4],[4,5],[5,4],[4,6],[6,4],[4,7],[7,8],[7,9],[9,10],[9,11]]},
+  {id:'multiagt',  ico:'🎯', lbl:'Multi-agente con router',  dsc:'Orquestador que distribuye a agentes especializados.',
+   nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'orquestador',x:CX,y:310},{t:'agente_esp',x:CX-250,y:450},{t:'agente_esp',x:CX,y:450},{t:'agente_esp',x:CX+250,y:450},{t:'memoria',x:CX-250,y:310},{t:'rag_enhanced',x:CX+250,y:310},{t:'llm',x:CX,y:570},{t:'langfuse',x:CX+280,y:185},{t:'router_out',x:CX,y:685}],
+   conns:[[0,1],[1,2],[2,3],[2,4],[2,5],[6,3],[7,5],[3,8],[4,8],[5,8],[8,9],[8,10]]},
+];
+
+// ════════════════════════════════════════════════════════════
+// LLM PRICING
+// ════════════════════════════════════════════════════════════
+const LLMS = [
+  {p:'Google',      n:'Gemini 2.5 Flash',   i:0.075, o:0.30,  b:'rápido',       bc:'#10B981'},
+  {p:'Google',      n:'Gemini 2.5 Pro',     i:1.25,  o:5.00,  b:'avanzado',     bc:'#3B82F6'},
+  {p:'Google',      n:'Gemini 1.5 Flash',   i:0.075, o:0.30,  b:'',             bc:''},
+  {p:'OpenAI',      n:'GPT-4o mini',         i:0.15,  o:0.60,  b:'económico',    bc:'#10B981'},
+  {p:'OpenAI',      n:'GPT-4o',              i:2.50,  o:10.00, b:'',             bc:''},
+  {p:'OpenAI',      n:'o3 mini',             i:1.10,  o:4.40,  b:'razonamiento', bc:'#F59E0B'},
+  {p:'OpenAI',      n:'o3',                  i:10.00, o:40.00, b:'razonamiento', bc:'#F59E0B'},
+  {p:'Anthropic',   n:'Claude Haiku 4.5',   i:0.80,  o:4.00,  b:'rápido',       bc:'#10B981'},
+  {p:'Anthropic',   n:'Claude Sonnet 4.6',  i:3.00,  o:15.00, b:'balanceado',   bc:'#3B82F6'},
+  {p:'Anthropic',   n:'Claude Opus 4.8',    i:15.00, o:75.00, b:'premium',      bc:'#EC4899'},
+  {p:'Anthropic',   n:'Claude Fable 5',     i:10.00, o:50.00, b:'flagship',     bc:'#7C3AED'},
+  {p:'Meta/OpenRouter',n:'Llama 3.3 70B',   i:0.12,  o:0.30,  b:'open source',  bc:'#6366F1'},
+  {p:'Meta/OpenRouter',n:'Llama 3.1 405B',  i:0.50,  o:0.75,  b:'open source',  bc:'#6366F1'},
+  {p:'DeepSeek',    n:'DeepSeek R1',         i:0.55,  o:2.19,  b:'razonamiento', bc:'#F59E0B'},
+  {p:'DeepSeek',    n:'DeepSeek V3',         i:0.27,  o:1.10,  b:'',             bc:''},
+  {p:'Mistral',     n:'Mistral Large',       i:2.00,  o:6.00,  b:'',             bc:''},
+  {p:'Mistral',     n:'Mistral Small',       i:0.10,  o:0.30,  b:'económico',    bc:'#10B981'},
+];
+
+// ════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════
+const S = {
+  nodes:{}, conns:{},
+  sel:null,         // 'n:id' | 'c:id'
+  mode:'sel',       // 'sel' | 'conn'
+  cFrom:null,       // nodeId when connecting
+  drag:null,        // {id,ox,oy,mx,my}
+  nc:1, cc:1,
+  wizStep:0,
+  wd:{channels:[], mem:false, perfil:false, rag:'none', obs:false, sw:false, llm:'gemini-2.5-flash',
+      clasifica:false, intents:['CONVERSACION','FAQ','ACCION'], registro:false,
+      schedule:false, timezone:'America/Mexico_City'},
+  swNode:null, swIn:[], swOut:[],
+  vx:0, vy:0, vs:1, panState:null,
+};
+
+const nid=()=>'n'+(S.nc++);
+const cid=()=>'c'+(S.cc++);
+
+// ════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════
+function hide(id){document.getElementById(id).style.display='none'}
+function show(id){document.getElementById(id).style.display='flex'}
+function escA(s){return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function svgPt(e){
+  const w=document.getElementById('cwrap'),r=w.getBoundingClientRect();
+  const rx=e.clientX-r.left, ry=e.clientY-r.top;
+  return{x:(rx-S.vx)/S.vs, y:(ry-S.vy)/S.vs};
+}
+let _lodBucket=2;
+function lodBucket(){const eff=NH*S.vs;return eff<10?0:eff<20?1:2;}
+function applyView(){
+  document.getElementById('canvas-root').setAttribute('transform',`translate(${S.vx},${S.vy}) scale(${S.vs})`);
+  document.getElementById('zoom-lbl').textContent=Math.round(S.vs*100)+'%';
+  const w=document.getElementById('cwrap');
+  w.style.backgroundPosition=`${S.vx}px ${S.vy}px`;
+  w.style.backgroundSize=`${28*S.vs}px ${28*S.vs}px`;
+  // Fix 2: re-render de nodos solo al cruzar umbral de nivel de detalle
+  const b=lodBucket();
+  if(b!==_lodBucket){_lodBucket=b;renderNodes();}
+  renderMinimap();
+}
+function zoom(delta,cx,cy){
+  const w=document.getElementById('cwrap');
+  cx=cx??w.clientWidth/2;
+  cy=cy??w.clientHeight/2;
+  const ns=Math.max(0.15,Math.min(4,S.vs*delta));
+  const ratio=ns/S.vs;
+  S.vx=cx-(cx-S.vx)*ratio;
+  S.vy=cy-(cy-S.vy)*ratio;
+  S.vs=ns;
+  applyView();
+}
+function resetView(){S.vx=0;S.vy=0;S.vs=1;applyView();}
+function setStatus(m){document.getElementById('st-msg').textContent=m}
+function compOf(type){return C[type]||C.custom}
+
+// ════════════════════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════════════════════
+function render(){renderConns();renderNodes();renderStatus();renderMinimap();if(curTab==='seq')renderSeq();}
+
+function renderNodes(){
+  const nl=document.getElementById('nl');
+  nl.innerHTML='';
+  // Fix 2: nivel de detalle según tamaño efectivo en pantalla (NH * vs)
+  const eff=NH*S.vs;
+  const showText=eff>=20;   // etiquetas visibles
+  const showIcon=eff>=10;   // por debajo, solo el rectángulo coloreado
+  for(const[id,nd] of Object.entries(S.nodes)){
+    const cp=compOf(nd.type);
+    const sel=S.sel==='n:'+id;
+    const label=nd.label||cp.l;
+    const g=svgEl('g');
+    g.setAttribute('transform',`translate(${nd.x},${nd.y})`);
+    g.setAttribute('data-id',id);
+
+    // Shadow when selected
+    const rect=svgEl('rect');
+    rect.setAttribute('width',NW);rect.setAttribute('height',NH);
+    rect.setAttribute('rx',8);rect.setAttribute('fill',showIcon?'#1F2937':cp.col);
+    rect.setAttribute('fill-opacity',showIcon?'1':'0.55');
+    rect.setAttribute('stroke',sel?'#fff':cp.col);
+    rect.setAttribute('stroke-width',sel?'2.5':'1.5');
+    g.appendChild(rect);
+
+    if(showIcon){
+      // Left color bar
+      const bar=svgEl('rect');
+      bar.setAttribute('width',4);bar.setAttribute('height',NH);
+      bar.setAttribute('rx',3);bar.setAttribute('fill',cp.col);
+      g.appendChild(bar);
+
+      // Icon (centrado si no hay texto)
+      const ic=svgEl('text');
+      ic.setAttribute('x',showText?14:NW/2-8);ic.setAttribute('y',showText?24:NH/2+7);
+      ic.setAttribute('fill',cp.col);ic.setAttribute('font-size',showText?14:20);
+      ic.textContent=cp.ic;g.appendChild(ic);
+    }
+
+    if(showText){
+      // Label
+      const lbl=svgEl('text');
+      lbl.setAttribute('x',34);lbl.setAttribute('y',24);
+      lbl.setAttribute('fill','#F9FAFB');lbl.setAttribute('font-size',11);
+      lbl.setAttribute('font-weight','600');
+      lbl.setAttribute('font-family','system-ui,sans-serif');
+      lbl.textContent=label.length>19?label.slice(0,18)+'…':label;
+      g.appendChild(lbl);
+
+      // Sublabel
+      const sub=svgEl('text');
+      sub.setAttribute('x',34);sub.setAttribute('y',40);
+      sub.setAttribute('fill','#6B7280');sub.setAttribute('font-size',9);
+      sub.setAttribute('font-family','system-ui,sans-serif');
+      sub.textContent=cp.cat.toUpperCase();
+      g.appendChild(sub);
+
+      // SW badge
+      if(cp.sw||nd.swData){
+        const sb=svgEl('rect');
+        sb.setAttribute('x',NW-26);sb.setAttribute('y',5);
+        sb.setAttribute('width',22);sb.setAttribute('height',13);
+        sb.setAttribute('rx',3);sb.setAttribute('fill','rgba(124,58,237,.4)');
+        g.appendChild(sb);
+        const st=svgEl('text');
+        st.setAttribute('x',NW-23);st.setAttribute('y',15);
+        st.setAttribute('fill','#c4b5fd');st.setAttribute('font-size',9);
+        st.textContent='SW';g.appendChild(st);
+      }
+    }
+
+    // Connection mode dots
+    if(S.mode==='conn'&&showIcon){
+      [[NW/2,0],[NW/2,NH],[0,NH/2],[NW,NH/2]].forEach(([px,py])=>{
+        const d=svgEl('circle');
+        d.setAttribute('cx',px);d.setAttribute('cy',py);d.setAttribute('r',5);
+        d.setAttribute('fill',S.cFrom===id?'#fff':cp.col);
+        d.setAttribute('stroke',cp.col);d.setAttribute('stroke-width',1.5);
+        g.appendChild(d);
+      });
+    }
+
+    // Hit area (invisible, for events)
+    const hit=svgEl('rect');
+    hit.setAttribute('width',NW);hit.setAttribute('height',NH);
+    hit.setAttribute('rx',8);hit.setAttribute('fill','transparent');
+    hit.setAttribute('stroke','none');
+    hit.addEventListener('mousedown',e=>onNodeMD(e,id));
+    hit.addEventListener('click',e=>onNodeClick(e,id));
+    hit.addEventListener('dblclick',e=>onNodeDbl(e,id));
+    hit.addEventListener('mouseenter',()=>tipEnter(id,hit));
+    hit.addEventListener('mouseleave',tipLeave);
+    g.appendChild(hit);
+
+    nl.appendChild(g);
+  }
+}
+
+function renderConns(){
+  const cl=document.getElementById('cl');
+  cl.innerHTML='';
+  for(const[id,cn] of Object.entries(S.conns)){
+    const fn=S.nodes[cn.from],tn=S.nodes[cn.to];
+    if(!fn||!tn) continue;
+    const cp=compOf(fn.type);
+    const sel=S.sel==='c:'+id;
+    const hasRev=Object.values(S.conns).some(c=>c.from===cn.to&&c.to===cn.from);
+    const off=hasRev?12:0;
+    const geom=connGeom(fn,tn,off);
+    const d=geom.d;
+
+    // Hit area
+    const hit=svgEl('path');
+    hit.setAttribute('d',d);hit.setAttribute('fill','none');
+    hit.setAttribute('stroke','transparent');hit.setAttribute('stroke-width',14);
+    hit.style.cursor='pointer';
+    hit.addEventListener('click',e=>{e.stopPropagation();onConnClick(id);});
+    cl.appendChild(hit);
+
+    // Visual path
+    const path=svgEl('path');
+    path.setAttribute('d',d);path.setAttribute('fill','none');
+    path.setAttribute('stroke',sel?'#FFFFFF':cp.col);
+    path.setAttribute('stroke-width',sel?'2.5':'1.8');
+    path.setAttribute('stroke-opacity',sel?'1':'0.85');
+    path.setAttribute('marker-end','url(#ah)');
+    path.style.color=sel?'#FFFFFF':cp.col;
+    if(cp.cat==='obs') path.setAttribute('stroke-dasharray','7,4');
+    path.style.cursor='pointer';
+    path.addEventListener('click',e=>{e.stopPropagation();onConnClick(id);});
+    cl.appendChild(path);
+
+    // Fix 1: badge en el punto real al 50% de la bezier cúbica
+    const fields=cn.fields||[];
+    const [mx,my]=bezMid(geom.p0,geom.p1,geom.p2,geom.p3);
+    const bg=svgEl('g');
+    bg.setAttribute('class','contract-badge');
+    bg.setAttribute('transform',`translate(${mx},${my})`);
+    bg.addEventListener('click',e=>{e.stopPropagation();openContractEditor(id);});
+    const bw=fields.length?Math.min(120,fields.length*22+28):22;
+    const bh=16;
+    const br=svgEl('rect');
+    br.setAttribute('x',-bw/2);br.setAttribute('y',-bh/2);
+    br.setAttribute('width',bw);br.setAttribute('height',bh);
+    br.setAttribute('rx',3);
+    br.setAttribute('fill',fields.length?'rgba(31,41,55,0.92)':'rgba(31,41,55,0.6)');
+    br.setAttribute('stroke',fields.length?cp.col:'#374151');
+    br.setAttribute('stroke-width','1');
+    bg.appendChild(br);
+    const bt=svgEl('text');
+    bt.setAttribute('x',0);bt.setAttribute('y',5);
+    bt.setAttribute('text-anchor','middle');
+    bt.setAttribute('fill',fields.length?cp.col:'#4B5563');
+    bt.setAttribute('font-size','9');
+    bt.setAttribute('font-family','system-ui,sans-serif');
+    bt.textContent=fields.length?fields.map(f=>f.n).join(', '):'+ contrato';
+    if(bt.textContent.length>16) bt.textContent=fields.length+' campo'+(fields.length!==1?'s':'');
+    bg.appendChild(bt);
+    cl.appendChild(bg);
+  }
+}
+
+function connGeom(fn,tn,off=0){
+  const fcy=fn.y+NH/2, tcy=tn.y+NH/2;
+  const fcx=fn.x+NW/2, tcx=tn.x+NW/2;
+  const dy=tcy-fcy, dx=tcx-fcx;
+  let p0,p1,p2,p3;
+  if(Math.abs(dy)>NH*0.8){
+    // vertical
+    const sy=dy>0?fn.y+NH:fn.y, ty=dy>0?tn.y:tn.y+NH;
+    const cp=Math.min(Math.abs(dy)*0.45,100);
+    p0=[fcx+off,sy]; p1=[fcx+off,sy+(dy>0?cp:-cp)];
+    p2=[tcx+off,ty-(dy>0?cp:-cp)]; p3=[tcx+off,ty];
+  } else {
+    // horizontal / diagonal
+    const goR=dx>0;
+    const sx=goR?fn.x+NW:fn.x, sy=fcy+off;
+    const tx=goR?tn.x:tn.x+NW, ty=tcy+off;
+    const cp=Math.min(Math.abs(dx)*0.45,100);
+    p0=[sx,sy]; p1=[sx+(goR?cp:-cp),sy];
+    p2=[tx-(goR?cp:-cp),ty]; p3=[tx,ty];
+  }
+  return{d:`M ${p0[0]},${p0[1]} C ${p1[0]},${p1[1]} ${p2[0]},${p2[1]} ${p3[0]},${p3[1]}`,p0,p1,p2,p3};
+}
+// B(0.5) de una bezier cúbica: (P0 + 3P1 + 3P2 + P3) / 8
+function bezMid(p0,p1,p2,p3){
+  return[(p0[0]+3*p1[0]+3*p2[0]+p3[0])/8,(p0[1]+3*p1[1]+3*p2[1]+p3[1])/8];
+}
+
+function renderStatus(){
+  let msg='';
+  if(S.mode==='conn'){
+    msg=S.cFrom?`Conectando desde "${compOf(S.nodes[S.cFrom]?.type).l}" — haz clic en el destino`:'Haz clic en el nodo de origen';
+  } else if(S.sel){
+    const [type,id]=S.sel.split(':');
+    if(type==='n'&&S.nodes[id]){
+      const nd=S.nodes[id], cp=compOf(nd.type);
+      msg=`${cp.ic} ${nd.label||cp.l} — ${cp.d}${cp.sw?' · Doble clic para editar contrato JSON':''}`;
+    } else if(type==='c'&&S.conns[id]){
+      const cn=S.conns[id];
+      const fn=S.nodes[cn.from],tn=S.nodes[cn.to];
+      msg=`Conexión: ${compOf(fn?.type).l} → ${compOf(tn?.type).l} — Eliminar con ✕`;
+    }
+  } else {
+    const nc=Object.keys(S.nodes).length, cc=Object.keys(S.conns).length;
+    msg=nc>0?`${nc} componentes · ${cc} conexiones — Haz clic para seleccionar`:'Usa Plantillas para comenzar o arrastra componentes del panel izquierdo';
+  }
+  setStatus(msg);
+}
+
+// SVG element helper
+function svgEl(tag){return document.createElementNS('http://www.w3.org/2000/svg',tag)}
+
+// ════════════════════════════════════════════════════════════
+// NODE / CONN OPERATIONS
+// ════════════════════════════════════════════════════════════
+function addNode(type,x,y){
+  if(type==='custom'){
+    const lbl=prompt('Nombre del componente:','Componente personalizado');
+    if(!lbl) return null;
+    const id=nid();
+    S.nodes[id]={id,type,x,y,label:lbl};
+    S.sel='n:'+id; render(); return id;
+  }
+  const id=nid();
+  S.nodes[id]={id,type,x,y};
+  S.sel='n:'+id; render(); return id;
+}
+
+function addConn(fromId,toId){
+  if(fromId===toId) return;
+  if(Object.values(S.conns).some(c=>c.from===fromId&&c.to===toId)) return;
+  const id=cid();
+  S.conns[id]={id,from:fromId,to:toId};
+  render();
+}
+
+function delSel(){
+  if(!S.sel) return;
+  const[type,id]=S.sel.split(':');
+  if(type==='n'){
+    delete S.nodes[id];
+    // Remove connected connections
+    for(const[cid,cn] of Object.entries(S.conns)){
+      if(cn.from===id||cn.to===id) delete S.conns[cid];
+    }
+    // Fix 5: limpiar referencias colgantes al eliminar cualquier nodo
+    if(S.cFrom===id) S.cFrom=null;
+    hideMemPanel(); hideTip();
+  } else if(type==='c'){
+    delete S.conns[id];
+  }
+  S.sel=null; render();
+}
+
+function clearAll(){
+  if(!Object.keys(S.nodes).length||confirm('¿Limpiar el canvas?')){
+    S.nodes={}; S.conns={}; S.sel=null; S.cFrom=null; S.nc=1; S.cc=1;
+    hideMemPanel(); hideTip(); render();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// DRAG
+// ════════════════════════════════════════════════════════════
+let _justDragged=false;
+function onNodeMD(e,id){
+  if(S.mode==='conn') return;
+  e.stopPropagation();
+  hideTip();
+  const pt=svgPt(e);
+  S.drag={id,ox:S.nodes[id].x,oy:S.nodes[id].y,mx:pt.x,my:pt.y,moved:false};
+  document.addEventListener('mousemove',onMM);
+  document.addEventListener('mouseup',onMU);
+}
+function onMM(e){
+  if(!S.drag) return;
+  const pt=svgPt(e);
+  const dx=pt.x-S.drag.mx, dy=pt.y-S.drag.my;
+  if(Math.abs(dx)>3||Math.abs(dy)>3) S.drag.moved=true;
+  S.nodes[S.drag.id].x=Math.max(0,S.drag.ox+dx);
+  S.nodes[S.drag.id].y=Math.max(0,S.drag.oy+dy);
+  render();
+}
+function onMU(){
+  _justDragged=!!(S.drag&&S.drag.moved);
+  S.drag=null;
+  document.removeEventListener('mousemove',onMM);
+  document.removeEventListener('mouseup',onMU);
+}
+function onNodeClick(e,id){
+  e.stopPropagation();
+  hideTip();
+  // P1: tras un drag real, ignorar el clic fantasma que dispara el navegador
+  if(_justDragged){_justDragged=false;return;}
+  if(S.mode==='conn'){
+    if(!S.cFrom){S.cFrom=id; render();}
+    else if(S.cFrom===id){S.cFrom=null; render();}
+    else{addConn(S.cFrom,id); S.cFrom=null; render();}
+    return;
+  }
+  if(S.sel==='n:'+id){
+    // Segundo clic sobre nodo de datos: mostrar panel SQL
+    const nd=S.nodes[id];
+    const memTypes=['memoria','registro_usu','supabase','perfil'];
+    if(memTypes.includes(nd.type)) showMemPanel(id);
+    return;
+  }
+  S.sel='n:'+id;
+  // Memory panel
+  const nd=S.nodes[id];
+  const memTypes=['memoria','registro_usu','supabase','perfil'];
+  if(memTypes.includes(nd?.type)) showMemPanel(id);
+  else hideMemPanel();
+  render();
+}
+// Feature B: doble clic — subworkflow abre modal de contrato, el resto edita etiqueta
+function onNodeDbl(e,id){
+  e.stopPropagation();
+  if(S.mode==='conn') return;
+  hideTip();
+  const nd=S.nodes[id];
+  if(!nd) return;
+  if((C[nd.type]?.sw)||nd.swData){openSW(id);return;}
+  const cur=nd.label||compOf(nd.type).l;
+  const v=prompt('Etiqueta del componente:',cur);
+  if(v&&v.trim()){nd.label=v.trim();render();}
+}
+function onConnClick(id){
+  S.sel='c:'+id; hideMemPanel(); render();
+}
+document.getElementById('cv').addEventListener('click',()=>{
+  if(_justDragged){_justDragged=false;return;}
+  S.sel=null; S.cFrom=null; hideMemPanel(); render();
+});
+
+// ════════════════════════════════════════════════════════════
+// CONNECT MODE
+// ════════════════════════════════════════════════════════════
+function toggleConn(){
+  S.mode=S.mode==='conn'?'sel':'conn';
+  S.cFrom=null; S.sel=null;
+  hideMemPanel(); hideTip();
+  document.getElementById('btn-conn').classList.toggle('on',S.mode==='conn');
+  document.getElementById('cv').className=S.mode==='conn'?'conn-mode':'sel-mode';
+  document.getElementById('mode-lbl').textContent=`Modo: ${S.mode==='conn'?'Conectar':'Selección'}`;
+  render();
+}
+
+// ════════════════════════════════════════════════════════════
+// APPLY PATTERN
+// ════════════════════════════════════════════════════════════
+function applyPat(idx){
+  S.nodes={}; S.conns={}; S.sel=null; S.nc=1; S.cc=1;
+  const p=PAT[idx];
+  const ids=p.nodes.map(nd=>{const id=nid();S.nodes[id]={id,type:nd.t,x:nd.x,y:nd.y};return id;});
+  p.conns.forEach(([fi,ti])=>ids[fi]&&ids[ti]&&addConn(ids[fi],ids[ti]));
+  render();
+  hide('ov-wiz');
+}
+
+// ════════════════════════════════════════════════════════════
+// BUILD FROM WIZARD
+// ════════════════════════════════════════════════════════════
+function buildFromWiz(){
+  const wd=S.wd;
+  S.nodes={}; S.conns={}; S.sel=null; S.nc=1; S.cc=1;
+  let y=60;
+  const gap=130;
+  const cx=CX-NW/2;
+
+  // Layer 0: Channels
+  const chs=wd.channels.length>0?wd.channels:['telegram'];
+  const chW=chs.length*210;
+  const chStartX=CX-chW/2+5;
+  const chIds=chs.map((ch,i)=>{
+    const id=nid(); S.nodes[id]={id,type:ch,x:chStartX+i*210,y}; return id;
+  });
+
+  y+=gap;
+
+  // Layer 1: Normalizador
+  const nId=nid();
+  S.nodes[nId]={id:nId,type:'normalizador',x:cx,y};
+  chIds.forEach(id=>addConn(id,nId));
+
+  y+=gap;
+
+  // Layer 1b: Clasificador de intención + registro_usuarios (si el wizard los activó)
+  let prevId=nId;
+  if(wd.clasifica){
+    const clId=nid();
+    S.nodes[clId]={id:clId,type:'clasificador',x:cx,y};
+    addConn(nId,clId);
+    if(wd.registro){
+      const rgId=nid();
+      S.nodes[rgId]={id:rgId,type:'registro_usu',x:cx-250,y};
+      addConn(clId,rgId);
+    }
+    prevId=clId;
+    y+=gap;
+  } else if(wd.registro){
+    const rgId=nid();
+    S.nodes[rgId]={id:rgId,type:'registro_usu',x:cx-250,y:y-gap};
+    addConn(nId,rgId);
+  }
+
+  // Layer 2: Brain
+  const brType=wd.sw?'subworkflow':'cerebro';
+  const brId=nid();
+  S.nodes[brId]={id:brId,type:brType,x:cx,y};
+  addConn(prevId,brId);
+
+  // Same Y, sides: sources
+  if(wd.mem){
+    const mId=nid();
+    S.nodes[mId]={id:mId,type:'memoria',x:cx-250,y};
+    addConn(brId,mId); addConn(mId,brId);
+  }
+  if(wd.perfil){
+    const offset=wd.mem?-490:-250;
+    const pId=nid();
+    S.nodes[pId]={id:pId,type:'perfil',x:cx+offset,y};
+    addConn(brId,pId);
+  }
+  if(wd.rag!=='none'){
+    const rt=wd.rag==='naive'?'rag_naive':wd.rag==='enhanced'?'rag_enhanced':'rag_multi';
+    const rId=nid();
+    S.nodes[rId]={id:rId,type:rt,x:cx+260,y};
+    addConn(brId,rId); addConn(rId,brId);
+  }
+
+  y+=gap;
+
+  // Layer 3: LLM
+  const llmId=nid();
+  S.nodes[llmId]={id:llmId,type:'llm',x:cx,y,label:wd.llm};
+  addConn(brId,llmId);
+
+  if(wd.obs){
+    const lfId=nid();
+    S.nodes[lfId]={id:lfId,type:'langfuse',x:cx+260,y};
+    addConn(llmId,lfId);
+  }
+
+  y+=gap;
+
+  // Layer 4: Router
+  const rtId=nid();
+  S.nodes[rtId]={id:rtId,type:'router_out',x:cx,y};
+  addConn(llmId,rtId);
+
+  y+=gap;
+
+  // Layer 5: Outputs (mirror channels)
+  chs.forEach((ch,i)=>{
+    const outT=ch==='telegram'?'resp_tel':'resp_http';
+    const oid=nid();
+    S.nodes[oid]={id:oid,type:outT,x:chStartX+i*210,y};
+    addConn(rtId,oid);
+  });
+
+  render();
+  hide('ov-wiz');
+}
+
+// ════════════════════════════════════════════════════════════
+// WIZARD
+// ════════════════════════════════════════════════════════════
+function showWiz(){S.wizStep=0; renderWiz(); show('ov-wiz');}
+function renderWiz(){
+  const s=S.wizStep, wd=S.wd;
+  const steps=['Canales','Clasificador','Memoria','RAG','Opciones','LLM'];
+  const dots=s===0?'':`<div class="wdots">${steps.map((_,i)=>`<div class="wd ${i<s-1?'done':i===s-1?'cur':''}"></div>`).join('')}</div>`;
+  let body='';
+  if(s===0){
+    body=`<h2>Plantillas de arquitectura</h2>
+    <p class="sub">Elige una plantilla para cargarla directamente, o construye paso a paso.</p>
+    <div class="pgrid">${PAT.map((p,i)=>`<div class="pc" onclick="applyPat(${i})"><div class="pico">${p.ico}</div><div class="plbl">${p.lbl}</div><div class="pdsc">${p.dsc}</div></div>`).join('')}</div>
+    <div class="mof"><button class="btn" onclick="hide('ov-wiz')">Cerrar</button><button class="btn pri" onclick="S.wizStep=1;renderWiz()">Personalizar paso a paso →</button></div>`;
+  } else if(s===1){
+    const chs=['telegram','webhook_in','web_ui','schedule','trigger'];
+    const chl=['💬 Telegram Bot','🔗 Webhook Entrada','🌐 Interfaz Web','⏰ Schedule Trigger','▶ Trigger Manual'];
+    body=`<h2>Canal(es) de entrada</h2><p class="sub">Paso 1 de 6 — ¿Por dónde llegan los mensajes? Puedes elegir más de uno.</p>${dots}
+    <div class="cgrid">${chs.map((c,i)=>`<div class="ci ${wd.channels.includes(c)?'sel':''}" onclick="toggleCh('${c}')">${chl[i]}</div>`).join('')}</div>
+    <div class="mof"><button class="btn" onclick="S.wizStep=0;renderWiz()">← Atrás</button><button class="btn" onclick="hide('ov-wiz')">Cancelar</button><button class="btn pri" onclick="S.wizStep=2;renderWiz()">Siguiente →</button></div>`;
+  } else if(s===2){
+    body=`<h2>Clasificador de intención</h2><p class="sub">Paso 2 de 6 — ¿Tu agente clasifica el mensaje antes de enrutar?</p>${dots}
+    <div class="trow" onclick="toggleWB('clasifica')"><div><div class="tlbl">🔍 Clasificador de intención</div><div class="tsub">Agente que enruta a diferentes ramas (temp 0.1, max 20 tokens)</div></div><div class="tog ${wd.clasifica?'on':''}"></div></div>
+    ${wd.clasifica?`<div style="margin-top:12px"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:7px;font-weight:600">Etiquetas de clasificación</label>
+    <div class="cgrid">${['CONVERSACION','FAQ','ACCION','SOPORTE','COMPRA','OTRO'].map(l=>`<div class="ci ${wd.intents.includes(l)?'sel':''}" onclick="toggleIntent('${l}')" style="font-size:10px;font-weight:700">${l}</div>`).join('')}</div>
+    <div style="margin-top:8px;display:flex;gap:6px"><input class="swin" id="intent-custom" placeholder="Etiqueta personalizada…" style="flex:1"><button class="btn" onclick="addCustomIntent()">+ Agregar</button></div></div>
+    <div class="trow" style="margin-top:10px" onclick="toggleWB('registro')"><div><div class="tlbl">📋 Tabla registro_usuarios</div><div class="tsub">UPSERT por usuario: primer_contacto, ultima_interaccion, status (TIMESTAMPTZ)</div></div><div class="tog ${wd.registro?'on':''}"></div></div>`:''}
+    <div class="mof"><button class="btn" onclick="S.wizStep=1;renderWiz()">← Atrás</button><button class="btn" onclick="hide('ov-wiz')">Cancelar</button><button class="btn pri" onclick="S.wizStep=3;renderWiz()">Siguiente →</button></div>`;
+  } else if(s===3){
+    body=`<h2>Fuentes de memoria</h2><p class="sub">Paso 3 de 6 — ¿Tu agente recuerda conversaciones anteriores?</p>${dots}
+    <div class="trow" onclick="toggleWB('mem')"><div><div class="tlbl">🗄 Memoria conversacional</div><div class="tsub">Historial de conversación por usuario — tabla s2_test (Supabase)</div></div><div class="tog ${wd.mem?'on':''}"></div></div>
+    <div class="trow" onclick="toggleWB('perfil')"><div><div class="tlbl">👤 Perfil de usuario</div><div class="tsub">Datos de registro del usuario (Supabase)</div></div><div class="tog ${wd.perfil?'on':''}"></div></div>
+    <div class="mof"><button class="btn" onclick="S.wizStep=2;renderWiz()">← Atrás</button><button class="btn" onclick="hide('ov-wiz')">Cancelar</button><button class="btn pri" onclick="S.wizStep=4;renderWiz()">Siguiente →</button></div>`;
+  } else if(s===4){
+    const opts=[{v:'none',ico:'—',l:'Sin RAG',d:'Solo conocimiento base del LLM'},{v:'naive',ico:'📚',l:'RAG Naive',d:'Similitud coseno en Qdrant'},{v:'enhanced',ico:'📚+',l:'RAG Enhanced',d:'Filtros de payload + metadatos'},{v:'multi',ico:'🖼',l:'RAG Multimodal',d:'RAG con análisis de imágenes (Gemini Vision)'}];
+    body=`<h2>Base de conocimiento (RAG)</h2><p class="sub">Paso 4 de 6 — ¿El agente consulta una base de documentos?</p>${dots}
+    <div class="rgrid">${opts.map(o=>`<div class="ri ${wd.rag===o.v?'sel':''}" onclick="S.wd.rag='${o.v}';renderWiz()"><span class="rico">${o.ico}</span><div><div class="rlbl">${o.l}</div><div class="rdsc">${o.d}</div></div></div>`).join('')}</div>
+    <div class="mof"><button class="btn" onclick="S.wizStep=3;renderWiz()">← Atrás</button><button class="btn" onclick="hide('ov-wiz')">Cancelar</button><button class="btn pri" onclick="S.wizStep=5;renderWiz()">Siguiente →</button></div>`;
+  } else if(s===5){
+    const tzones=['America/Mexico_City','America/Bogota','America/Lima','America/Santiago','UTC'];
+    body=`<h2>Opciones adicionales</h2><p class="sub">Paso 5 de 6 — Observabilidad, sub-workflows, re-engagement y zona horaria.</p>${dots}
+    <div class="trow" onclick="toggleWB('obs')"><div><div class="tlbl">👁 Langfuse (observabilidad)</div><div class="tsub">Trazas, latencias, costos (REST API: Set → Code → HTTP Request)</div></div><div class="tog ${wd.obs?'on':''}"></div></div>
+    <div class="trow" onclick="toggleWB('sw')"><div><div class="tlbl">📦 Sub-workflow</div><div class="tsub">El cerebro se encapsula como sub-workflow con contrato JSON</div></div><div class="tog ${wd.sw?'on':''}"></div></div>
+    <div class="trow" onclick="toggleWB('schedule')"><div><div class="tlbl">⏰ Re-engagement programado</div><div class="tsub">Schedule trigger que detecta inactivos y envía mensajes personalizados</div></div><div class="tog ${wd.schedule?'on':''}"></div></div>
+    <div style="margin-top:12px;padding:12px 14px;border:1px solid var(--bdr);border-radius:7px"><div class="tlbl" style="margin-bottom:8px">🌐 Zona horaria</div>
+    <div class="cgrid">${tzones.map(tz=>`<div class="ci ${wd.timezone===tz?'sel':''}" onclick="S.wd.timezone='${tz}';renderWiz()" style="font-size:10px;font-family:monospace">${tz}</div>`).join('')}</div></div>
+    <div class="mof"><button class="btn" onclick="S.wizStep=4;renderWiz()">← Atrás</button><button class="btn" onclick="hide('ov-wiz')">Cancelar</button><button class="btn pri" onclick="S.wizStep=6;renderWiz()">Siguiente →</button></div>`;
+  } else if(s===6){
+    const llms=[{id:'gemini-2.5-flash',l:'Gemini 2.5 Flash',p:'Google'},{id:'gemini-2.5-pro',l:'Gemini 2.5 Pro',p:'Google'},{id:'gpt-4o-mini',l:'GPT-4o mini',p:'OpenAI'},{id:'gpt-4o',l:'GPT-4o',p:'OpenAI'},{id:'claude-sonnet-4.6',l:'Claude Sonnet 4.6',p:'Anthropic'},{id:'claude-haiku-4.5',l:'Claude Haiku 4.5',p:'Anthropic'},{id:'claude-opus-4.8',l:'Claude Opus 4.8',p:'Anthropic'},{id:'llama-3.3-70b',l:'Llama 3.3 70B',p:'Meta / OpenRouter'},{id:'deepseek-r1',l:'DeepSeek R1',p:'DeepSeek'},{id:'otro',l:'Otro (personalizado)',p:''}];
+    body=`<h2>Modelo LLM</h2><p class="sub">Paso 6 de 6 — ¿Qué modelo usa el agente como cerebro principal?</p>${dots}
+    <div class="rgrid">${llms.map(m=>`<div class="ri ${wd.llm===m.id?'sel':''}" onclick="S.wd.llm='${m.id}';renderWiz()"><span class="rico" style="color:#EC4899">✦</span><div><div class="rlbl">${m.l}</div><div class="rdsc">${m.p}</div></div></div>`).join('')}</div>
+    <div class="mof"><button class="btn" onclick="S.wizStep=5;renderWiz()">← Atrás</button><button class="btn" onclick="hide('ov-wiz')">Cancelar</button><button class="btn pri" onclick="buildFromWiz()">Generar diagrama →</button></div>`;
+  }
+  document.getElementById('wiz-body').innerHTML=body;
+}
+
+function toggleCh(ch){const i=S.wd.channels.indexOf(ch);i>=0?S.wd.channels.splice(i,1):S.wd.channels.push(ch);renderWiz();}
+function toggleWB(key){S.wd[key]=!S.wd[key]; renderWiz();}
+function toggleIntent(l){const i=S.wd.intents.indexOf(l);i>=0?S.wd.intents.splice(i,1):S.wd.intents.push(l);renderWiz();}
+function addCustomIntent(){const v=document.getElementById('intent-custom')?.value?.trim().toUpperCase();if(v&&!S.wd.intents.includes(v)){S.wd.intents.push(v);renderWiz();}}
+
+
+// ════════════════════════════════════════════════════════════
+// PALETTE
+// ════════════════════════════════════════════════════════════
+function renderPal(){
+  const secs=[
+    {l:'Entrada',       types:['telegram','webhook_in','web_ui','schedule','trigger','gdrive_in','gcal_in','gmail_in']},
+    {l:'Procesamiento', types:['normalizador','clasificador','cerebro','subworkflow','orquestador','agente_esp','if_node','set_contrato','code_node']},
+    {l:'Fuentes',       types:['memoria','perfil','rag_naive','rag_enhanced','rag_multi']},
+    {l:'Modelo',        types:['llm','llm_chain']},
+    {l:'Salida',        types:['router_out','resp_tel','resp_http','webhook_out','gdrive_out','gcal_out','gmail_out']},
+    {l:'Observabilidad',types:['langfuse']},
+    {l:'Almacenamiento',types:['supabase','qdrant','registro_usu']},
+    {l:'Personalizado', types:['custom']},
+  ];
+  document.getElementById('pal').innerHTML=secs.map(s=>`
+    <div class="ps">
+      <h3>${s.l}</h3>
+      ${s.types.map(t=>{const cp=C[t];return`<div class="pi" onclick="addFromPal('${t}')" title="${cp?.d||''}">
+        <div class="pdot" style="background:${cp?.col||'#64748B'}"></div>
+        <span>${cp?.ic||'◆'}</span><span>${cp?.l||t}</span>
+      </div>`}).join('')}
+    </div>`).join('');
+}
+
+function addFromPal(type){
+  const w=document.getElementById('cwrap');
+  const x=(w.clientWidth/2-S.vx)/S.vs-NW/2;
+  const y=(w.clientHeight/2-S.vy)/S.vs-NH/2;
+  addNode(type,Math.max(10,x),Math.max(10,y));
+}
+
+// ════════════════════════════════════════════════════════════
+// EXPORT SVG
+// ════════════════════════════════════════════════════════════
+function contentBounds(pad=60){
+  const ns=Object.values(S.nodes);
+  if(!ns.length) return null;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  ns.forEach(n=>{
+    minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);
+    maxX=Math.max(maxX,n.x+NW);maxY=Math.max(maxY,n.y+NH);
+  });
+  return{x:minX-pad,y:minY-pad,w:maxX-minX+pad*2,h:maxY-minY+pad*2};
+}
+
+function doExpSVG(){
+  const b=contentBounds();
+  if(!b){setStatus('No hay componentes para exportar — construye una arquitectura primero');return;}
+  const svg=document.getElementById('cv');
+  const clone=svg.cloneNode(true);
+  // Exportar independiente del zoom/pan actual: transform identidad + viewBox al contenido
+  clone.querySelector('#canvas-root').removeAttribute('transform');
+  clone.setAttribute('width',Math.round(b.w));
+  clone.setAttribute('height',Math.round(b.h));
+  clone.setAttribute('viewBox',`${b.x} ${b.y} ${b.w} ${b.h}`);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const style=svgEl('style');
+  style.textContent=`text{font-family:system-ui,Arial,sans-serif}`;
+  clone.insertBefore(style,clone.firstChild);
+  const bg=svgEl('rect');
+  bg.setAttribute('x',b.x);bg.setAttribute('y',b.y);
+  bg.setAttribute('width',b.w);bg.setAttribute('height',b.h);
+  bg.setAttribute('fill','#070D1B');
+  clone.insertBefore(bg,style.nextSibling);
+  const blob=new Blob(['<?xml version="1.0"?>\n'+new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='arquitectura-agente.svg';a.click();
+  setStatus('SVG exportado');
+}
+
+// ════════════════════════════════════════════════════════════
+// EXPORT MARKDOWN
+// ════════════════════════════════════════════════════════════
+function genMD(){
+  const ns=Object.values(S.nodes);
+  const cs=Object.values(S.conns);
+  const nm={}; ns.forEach(n=>nm[n.id]=n);
+  const cats={entrada:'Canal(es) de entrada',proceso:'Procesamiento',fuente:'Fuentes de contexto',
+    modelo:'LLM',salida:'Salida',obs:'Observabilidad',datos:'Almacenamiento',agente:'Agentes',custom:'Otros'};
+  const bycat={};
+  ns.forEach(n=>{const cat=C[n.type]?.cat||'custom';(bycat[cat]=bycat[cat]||[]).push(n);});
+  let md=`# Arquitectura de agente IA\n\n> Generado con el Diseñador de Arquitectura PCIA · Módulo 4\n\n---\n\n## Componentes por capa\n\n`;
+  Object.entries(cats).forEach(([k,v])=>{
+    if(!bycat[k]) return;
+    md+=`### ${v}\n\n`;
+    bycat[k].forEach(n=>{
+      const cp=C[n.type]||C.custom;
+      md+=`- **${n.label||cp.l}** — ${cp.d}\n`;
+      if(n.swData){
+        md+=`  - Entradas: \`${JSON.stringify((n.swData.inputs||[]).map(f=>f.n))}\`\n`;
+        md+=`  - Salidas: \`${JSON.stringify((n.swData.outputs||[]).map(f=>f.n))}\`\n`;
+      }
+    });
+    md+='\n';
+  });
+  md+=`---\n\n## Flujo de datos\n\n`;
+  cs.forEach((c,i)=>{
+    const fn=nm[c.from],tn=nm[c.to];
+    if(!fn||!tn) return;
+    md+=`${i+1}. **${fn.label||C[fn.type]?.l||fn.type}** → **${tn.label||C[tn.type]?.l||tn.type}**\n`;
+  });
+  md+=`\n---\n\n## Contexto de arquitectura para Claude / n8n\n\n`;
+  md+=`Usa el siguiente bloque como contexto de arquitectura al generar flujos o scaffolding:\n\n\`\`\`\n`;
+  md+=`Stack: n8n v2.1.4 (Docker), Supabase/PostgreSQL, Qdrant v1.14.1, Langfuse, OpenRouter.\n\n`;
+  const entradas=ns.filter(n=>C[n.type]?.cat==='entrada').map(n=>C[n.type].l);
+  const fuentes=ns.filter(n=>C[n.type]?.cat==='fuente').map(n=>n.label||C[n.type].l);
+  const llms=ns.filter(n=>C[n.type]?.cat==='modelo').map(n=>n.label||C[n.type].l);
+  md+=`Canales de entrada: ${entradas.join(', ')||'no definido'}.\n`;
+  md+=`Fuentes de contexto: ${fuentes.join(', ')||'ninguna'}.\n`;
+  md+=`LLM principal: ${llms.join(', ')||'no definido'}.\n`;
+  md+=`Observabilidad: ${ns.some(n=>n.type==='langfuse')?'Langfuse (REST API: Set → Code → HTTP Request con Basic Auth)':'No configurada'}.\n`;
+  const swn=ns.filter(n=>n.swData);
+  if(swn.length){
+    md+=`\nSub-workflows:\n`;
+    swn.forEach(n=>{
+      md+=`  - ${n.swData.name||'Sub-workflow'}:\n`;
+      md+=`    entradas: {${(n.swData.inputs||[]).map(f=>`"${f.n}": "${f.t||'string'}"`).join(', ')}}\n`;
+      md+=`    salidas: {${(n.swData.outputs||[]).map(f=>`"${f.n}": "${f.t||'string'}"`).join(', ')}}\n`;
+    });
+  }
+  md+=`\`\`\`\n`;
+  return md;
+}
+
+function showExpMD(){
+  const md=genMD();
+  const uml='\n\n---\n\n## Diagrama de secuencia (PlantUML)\n\nPega esto en Miro (Import → PlantUML) o en https://plantuml.com/plantuml\n\n```plantuml\n'+genPlantUML()+'\n```';
+  document.getElementById('exp-content').textContent=md+uml;
+  show('ov-exp');
+}
+function copyExp(){
+  navigator.clipboard.writeText(document.getElementById('exp-content').textContent)
+    .then(()=>setStatus('¡Copiado al portapapeles!'));
+}
+
+// ════════════════════════════════════════════════════════════
+// PRICING
+// ════════════════════════════════════════════════════════════
+function showPric(){
+  const t=document.getElementById('ptbl');
+  let prev='';
+  t.innerHTML=`<thead><tr><th>Proveedor</th><th>Modelo</th><th>Entrada/1M</th><th>Salida/1M</th><th></th></tr></thead><tbody>`+
+  LLMS.map(m=>{
+    const pCell=m.p!==prev?`<td style="font-weight:600;white-space:nowrap">${m.p}</td>`:' <td></td>';
+    prev=m.p;
+    const badge=m.b?`<span class="badge" style="background:${m.bc}22;color:${m.bc}">${m.b}</span>`:'';
+    return`<tr>${pCell}<td>${m.n}</td><td>$${m.i.toFixed(3)}</td><td>$${m.o.toFixed(2)}</td><td>${badge}</td></tr>`;
+  }).join('')+'</tbody>';
+  show('ov-pric');
+}
+
+// ════════════════════════════════════════════════════════════
+// SUBWORKFLOW MODAL
+// ════════════════════════════════════════════════════════════
+function openSW(id){
+  S.swNode=id;
+  const nd=S.nodes[id];
+  const existing=nd.swData||{name:'',inputs:[],outputs:[]};
+  document.getElementById('sw-name').value=existing.name||'';
+  S.swIn=[...(existing.inputs||[])];
+  S.swOut=[...(existing.outputs||[])];
+  renderSW();
+  show('ov-sw');
+}
+
+function renderSW(){
+  const render=div=>(arr,side)=>{
+    document.getElementById(div).innerHTML=arr.map((f,i)=>
+      `<div class="swrow">
+        <input class="swin" value="${escA(f.n)}" placeholder="nombre" oninput="S.sw${side}[${i}].n=this.value;renderSWPre()">
+        <input class="swin" value="${escA(f.t||'string')}" placeholder="tipo" style="max-width:80px" oninput="S.sw${side}[${i}].t=this.value;renderSWPre()">
+        <button class="btn del" style="padding:3px 8px;font-size:10px" onclick="S.sw${side}.splice(${i},1);renderSW()">✕</button>
+      </div>`).join('');
+  };
+  render('sw-in')(S.swIn,'In');
+  render('sw-out')(S.swOut,'Out');
+  renderSWPre();
+}
+
+function renderSWPre(){
+  const nm=document.getElementById('sw-name').value||'SubWorkflow';
+  const ins=S.swIn.reduce((a,f)=>{if(f.n)a[f.n]=f.t||'string';return a},{});
+  const outs=S.swOut.reduce((a,f)=>{if(f.n)a[f.n]=f.t||'string';return a},{});
+  document.getElementById('sw-pre').textContent=
+`// Contrato JSON — ${nm}
+{
+  "entrada": ${JSON.stringify(ins,null,2)},
+  "salida":  ${JSON.stringify(outs,null,2)}
+}`;
+}
+
+function addSWF(side){
+  if(side==='i') S.swIn.push({n:'',t:'string'});
+  else S.swOut.push({n:'',t:'string'});
+  renderSW();
+}
+
+function saveSW(){
+  if(S.swNode&&S.nodes[S.swNode]){
+    S.nodes[S.swNode].swData={
+      name:document.getElementById('sw-name').value,
+      inputs:S.swIn.filter(f=>f.n),
+      outputs:S.swOut.filter(f=>f.n)
+    };
+    S.nodes[S.swNode].label=document.getElementById('sw-name').value||'Sub-workflow';
+    render();
+  }
+  hide('ov-sw');
+}
+
+// ════════════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════════════
+let curTab='arch';
+
+function setTab(t){
+  curTab=t;
+  document.getElementById('cwrap').style.display=t==='arch'?'':'none';
+  document.getElementById('seq-wrap').style.display=t==='seq'?'block':'none';
+  document.getElementById('tab-arch').classList.toggle('on',t==='arch');
+  document.getElementById('tab-seq').classList.toggle('on',t==='seq');
+  document.getElementById('arch-ctrls').style.display=t==='arch'?'flex':'none';
+  document.getElementById('seq-ctrls').style.display=t==='seq'?'flex':'none';
+  if(t==='seq') renderSeq();
+}
+
+// ════════════════════════════════════════════════════════════
+// SEQUENCE DIAGRAM — MESSAGE LABELS
+// ════════════════════════════════════════════════════════════
+const MSG_MAP={
+  'telegram→normalizador':    {l:'reenvía mensaje',         r:false},
+  'webhook_in→normalizador':  {l:'reenvía request',         r:false},
+  'web_ui→normalizador':      {l:'reenvía input',           r:false},
+  'trigger→normalizador':     {l:'dispara flujo',           r:false},
+  'normalizador→cerebro':     {l:'mensaje normalizado',     r:false},
+  'normalizador→subworkflow': {l:'mensaje normalizado',     r:false},
+  'cerebro→memoria':          {l:'consulta historial',      r:false},
+  'memoria→cerebro':          {l:'retorna contexto',        r:true},
+  'subworkflow→memoria':      {l:'consulta historial',      r:false},
+  'memoria→subworkflow':      {l:'retorna contexto',        r:true},
+  'cerebro→rag_naive':        {l:'busca vectores',          r:false},
+  'rag_naive→cerebro':        {l:'retorna contexto',        r:true},
+  'cerebro→rag_enhanced':     {l:'busca con filtros',       r:false},
+  'rag_enhanced→cerebro':     {l:'retorna contexto filtrado',r:true},
+  'cerebro→rag_multi':        {l:'busca + imagen',          r:false},
+  'rag_multi→cerebro':        {l:'retorna contexto',        r:true},
+  'subworkflow→rag_naive':    {l:'busca vectores',          r:false},
+  'rag_naive→subworkflow':    {l:'retorna contexto',        r:true},
+  'subworkflow→rag_enhanced': {l:'busca con filtros',       r:false},
+  'rag_enhanced→subworkflow': {l:'retorna contexto filtrado',r:true},
+  'subworkflow→rag_multi':    {l:'busca + imagen',          r:false},
+  'rag_multi→subworkflow':    {l:'retorna contexto',        r:true},
+  'cerebro→llm':              {l:'construye prompt',        r:false},
+  'subworkflow→llm':          {l:'construye prompt',        r:false},
+  'orquestador→llm':          {l:'construye prompt',        r:false},
+  'agente_esp→llm':           {l:'procesa con LLM',         r:false},
+  'llm→cerebro':              {l:'genera respuesta',        r:true},
+  'llm→subworkflow':          {l:'genera respuesta',        r:true},
+  'llm→orquestador':          {l:'genera respuesta',        r:true},
+  'llm→agente_esp':           {l:'genera respuesta',        r:true},
+  'llm→langfuse':             {l:'envía trazas',            r:false},
+  'llm→router_out':           {l:'envía respuesta',         r:false},
+  'cerebro→router_out':       {l:'envía respuesta',         r:false},
+  'subworkflow→router_out':   {l:'envía respuesta',         r:false},
+  'agente_esp→router_out':    {l:'envía respuesta',         r:false},
+  'router_out→resp_tel':      {l:'enruta → Telegram',       r:false},
+  'router_out→resp_http':     {l:'enruta → HTTP',           r:false},
+  'router_out→webhook_out':   {l:'enruta → webhook',        r:false},
+  'resp_tel→telegram':        {l:'entrega respuesta',       r:true},
+  'resp_http→webhook_in':     {l:'responde HTTP',           r:true},
+  'orquestador→agente_esp':   {l:'delega tarea',            r:false},
+  'agente_esp→memoria':       {l:'consulta memoria',        r:false},
+  'agente_esp→rag_enhanced':  {l:'consulta RAG',            r:false},
+  'cerebro→perfil':           {l:'consulta perfil',         r:false},
+  'perfil→cerebro':           {l:'retorna perfil',          r:true},
+  'subworkflow→perfil':       {l:'consulta perfil',         r:false},
+  'perfil→subworkflow':       {l:'retorna perfil',          r:true},
+  'cerebro→supabase':         {l:'escribe / lee',           r:false},
+  'cerebro→qdrant':           {l:'busca vectores',          r:false},
+};
+
+// ════════════════════════════════════════════════════════════
+// TOPOLOGICAL SORT
+// ════════════════════════════════════════════════════════════
+function topoSort(){
+  const ids=Object.keys(S.nodes);
+  const children={}, inDeg={};
+  ids.forEach(id=>{children[id]=[];inDeg[id]=0;});
+  Object.values(S.conns).forEach(c=>{
+    if(children[c.from]&&inDeg[c.to]!==undefined){
+      children[c.from].push(c.to);
+      inDeg[c.to]++;
+    }
+  });
+  const catOrd={entrada:0,proceso:1,fuente:2,modelo:3,obs:4,salida:5,datos:6,agente:2,custom:7};
+  const queue=ids.filter(id=>inDeg[id]===0)
+    .sort((a,b)=>(catOrd[C[S.nodes[a]?.type]?.cat]||9)-(catOrd[C[S.nodes[b]?.type]?.cat]||9));
+  const result=[];
+  while(queue.length){
+    const id=queue.shift();
+    result.push(id);
+    children[id].sort((a,b)=>(catOrd[C[S.nodes[a]?.type]?.cat]||9)-(catOrd[C[S.nodes[b]?.type]?.cat]||9))
+      .forEach(child=>{if(--inDeg[child]===0) queue.push(child);});
+  }
+  ids.forEach(id=>{if(!result.includes(id)) result.push(id);});
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════
+// GENERATE MESSAGE LIST
+// ════════════════════════════════════════════════════════════
+function genSeqMsgs(topoIds){
+  const msgs=[];
+  // Virtual: Usuario → primera entrada
+  const firstIn=topoIds.find(id=>C[S.nodes[id]?.type]?.cat==='entrada');
+  if(firstIn) msgs.push({from:'__u__',to:firstIn,l:'envía mensaje',r:false,col:'#10B981'});
+
+  const added=new Set();
+  topoIds.forEach(fromId=>{
+    Object.values(S.conns).forEach(c=>{
+      if(c.from!==fromId||added.has(c.id)) return;
+      added.add(c.id);
+      const ft=S.nodes[fromId]?.type, tt=S.nodes[c.to]?.type;
+      const key=`${ft}→${tt}`;
+      const info=MSG_MAP[key]||{l:`→ ${C[tt]?.l||tt}`,r:false};
+      const col=info.r?'#6B7280':(C[ft]?.col||'#9CA3AF');
+      msgs.push({from:fromId,to:c.to,l:info.l,r:info.r,col});
+    });
+  });
+
+  // Virtual: última salida → Usuario
+  const lastOut=[...topoIds].reverse().find(id=>C[S.nodes[id]?.type]?.cat==='salida');
+  if(lastOut) msgs.push({from:lastOut,to:'__u__',l:'entrega respuesta al usuario',r:true,col:'#6B7280'});
+
+  return msgs;
+}
+
+// ════════════════════════════════════════════════════════════
+// RENDER SEQUENCE DIAGRAM
+// ════════════════════════════════════════════════════════════
+function renderSeq(){
+  const topoIds=topoSort();
+  if(!topoIds.length){
+    document.getElementById('seq-cv').innerHTML=
+      '<text x="40" y="60" fill="#6B7280" font-size="14" font-family="system-ui">Sin componentes — construye una arquitectura primero.</text>';
+    return;
+  }
+
+  const actors=['__u__',...topoIds];
+  const msgs=genSeqMsgs(topoIds);
+
+  const LFW=150, BOXW=130, BOXH=40, TOP=20, MSTART=100, MGAP=52;
+  const totalW=actors.length*LFW+80;
+  const totalH=MSTART+msgs.length*MGAP+100;
+
+  const actorX={};
+  actors.forEach((id,i)=>{ actorX[id]=40+LFW*i+LFW/2; });
+
+  const svg=document.getElementById('seq-cv');
+  svg.setAttribute('width',totalW);
+  svg.setAttribute('height',totalH);
+  svg.innerHTML='';
+
+  // Defs
+  const defs=svgEl('defs');
+  const mkF=svgEl('marker');
+  mkF.setAttribute('id','seq-ah');mkF.setAttribute('markerWidth','8');
+  mkF.setAttribute('markerHeight','6');mkF.setAttribute('refX','7');mkF.setAttribute('refY','3');
+  mkF.setAttribute('orient','auto');
+  const polyF=svgEl('polygon');polyF.setAttribute('points','0 0,8 3,0 6');polyF.style.fill='currentColor';
+  mkF.appendChild(polyF);defs.appendChild(mkF);svg.appendChild(defs);
+
+  // Background
+  const bgr=svgEl('rect');bgr.setAttribute('width',totalW);bgr.setAttribute('height',totalH);
+  bgr.setAttribute('fill','#070D1B');svg.appendChild(bgr);
+
+  // Helper: actor label
+  function actorLabel(id){
+    if(id==='__u__') return 'Usuario';
+    const nd=S.nodes[id];
+    const l=nd?.label||C[nd?.type]?.l||id;
+    return l.length>15?l.slice(0,14)+'…':l;
+  }
+  function actorColor(id){
+    if(id==='__u__') return '#10B981';
+    return C[S.nodes[id]?.type]?.col||'#374151';
+  }
+
+  // Draw boxes + lifelines (top)
+  actors.forEach(id=>{
+    const x=actorX[id];
+    // Box
+    const r=svgEl('rect');
+    r.setAttribute('x',x-BOXW/2);r.setAttribute('y',TOP);
+    r.setAttribute('width',BOXW);r.setAttribute('height',BOXH);
+    r.setAttribute('rx',5);r.setAttribute('fill','#1F2937');
+    r.setAttribute('stroke',actorColor(id));r.setAttribute('stroke-width','1.5');
+    svg.appendChild(r);
+    // Label
+    const t=svgEl('text');
+    t.setAttribute('x',x);t.setAttribute('y',TOP+25);
+    t.setAttribute('text-anchor','middle');t.setAttribute('fill','#F9FAFB');
+    t.setAttribute('font-size','10.5');t.setAttribute('font-weight','600');
+    t.setAttribute('font-family','system-ui,sans-serif');
+    t.textContent=actorLabel(id);svg.appendChild(t);
+    // Lifeline
+    const ll=svgEl('line');
+    ll.setAttribute('x1',x);ll.setAttribute('y1',TOP+BOXH);
+    ll.setAttribute('x2',x);ll.setAttribute('y2',totalH-60);
+    ll.setAttribute('stroke','#374151');ll.setAttribute('stroke-width','1.2');
+    ll.setAttribute('stroke-dasharray','6,4');
+    svg.appendChild(ll);
+  });
+
+  // Draw messages
+  msgs.forEach((msg,i)=>{
+    const y=MSTART+i*MGAP;
+    const x1=actorX[msg.from], x2=actorX[msg.to];
+    if(!x1||!x2) return;
+    const col=msg.col||'#9CA3AF';
+    // Line
+    const ln=svgEl('line');
+    ln.setAttribute('x1',x1);ln.setAttribute('y1',y);
+    ln.setAttribute('x2',x2);ln.setAttribute('y2',y);
+    ln.setAttribute('stroke',col);
+    ln.setAttribute('stroke-width',msg.r?'1.2':'1.8');
+    if(msg.r) ln.setAttribute('stroke-dasharray','7,4');
+    ln.setAttribute('marker-end','url(#seq-ah)');
+    ln.style.color=col;
+    svg.appendChild(ln);
+    // Label
+    const midX=(x1+x2)/2;
+    const lbl=svgEl('text');
+    lbl.setAttribute('x',midX);lbl.setAttribute('y',y-7);
+    lbl.setAttribute('text-anchor','middle');lbl.setAttribute('fill',msg.r?'#6B7280':'#CBD5E1');
+    lbl.setAttribute('font-size','9.5');lbl.setAttribute('font-family','system-ui,sans-serif');
+    lbl.setAttribute('font-style',msg.r?'italic':'normal');
+    lbl.textContent=msg.l;svg.appendChild(lbl);
+  });
+
+  // Bottom boxes (mirror)
+  actors.forEach(id=>{
+    const x=actorX[id];
+    const r=svgEl('rect');
+    r.setAttribute('x',x-BOXW/2);r.setAttribute('y',totalH-60);
+    r.setAttribute('width',BOXW);r.setAttribute('height',BOXH);
+    r.setAttribute('rx',5);r.setAttribute('fill','#1F2937');
+    r.setAttribute('stroke',actorColor(id));r.setAttribute('stroke-width','1.5');
+    svg.appendChild(r);
+    const t=svgEl('text');
+    t.setAttribute('x',x);t.setAttribute('y',totalH-60+25);
+    t.setAttribute('text-anchor','middle');t.setAttribute('fill','#F9FAFB');
+    t.setAttribute('font-size','10.5');t.setAttribute('font-weight','600');
+    t.setAttribute('font-family','system-ui,sans-serif');
+    t.textContent=actorLabel(id);svg.appendChild(t);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// EXPORT SEQUENCE SVG
+// ════════════════════════════════════════════════════════════
+function doExpSeqSVG(){
+  renderSeq();
+  const svg=document.getElementById('seq-cv');
+  const clone=svg.cloneNode(true);
+  const blob=new Blob(['<?xml version="1.0"?>\n'+new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='secuencia-agente.svg';a.click();
+}
+
+// ════════════════════════════════════════════════════════════
+// PLANTUML EXPORT
+// ════════════════════════════════════════════════════════════
+function genPlantUML(){
+  const topoIds=topoSort();
+  const msgs=genSeqMsgs(topoIds);
+
+  function pid(id){ return id==='__u__'?'usuario':id.replace(/[^a-z0-9]/gi,'_'); }
+  function lbl(id){
+    if(id==='__u__') return 'Usuario';
+    const nd=S.nodes[id];
+    return String(nd?.label||C[nd?.type]?.l||id).replace(/"/g,"'");
+  }
+
+  let uml='@startuml\n';
+  uml+='skinparam backgroundColor #070D1B\n';
+  uml+='skinparam sequenceArrowThickness 1.5\n';
+  uml+='skinparam participant {\n  BackgroundColor #1F2937\n  BorderColor #374151\n  FontColor #F9FAFB\n  FontSize 11\n}\n';
+  uml+='skinparam actor {\n  BackgroundColor #1F2937\n  BorderColor #10B981\n  FontColor #F9FAFB\n}\n';
+  uml+='skinparam ArrowColor #9CA3AF\n\n';
+  uml+=`actor "${lbl('__u__')}" as ${pid('__u__')}\n`;
+  topoIds.forEach(id=>{ uml+=`participant "${lbl(id)}" as ${pid(id)}\n`; });
+  uml+='\n';
+  msgs.forEach(m=>{
+    const arr=m.r?`${pid(m.from)} -->> ${pid(m.to)}`:`${pid(m.from)} -> ${pid(m.to)}`;
+    uml+=`${arr}: ${m.l}\n`;
+  });
+  uml+='@enduml';
+  return uml;
+}
+
+// ════════════════════════════════════════════════════════════
+// N8N PROMPT GENERATOR
+// ════════════════════════════════════════════════════════════
+function showN8N(){
+  document.getElementById('n8n-content').textContent=genN8NPrompt();
+  show('ov-n8n');
+}
+function copyN8N(){
+  navigator.clipboard.writeText(document.getElementById('n8n-content').textContent)
+    .then(()=>setStatus('¡Prompt copiado — pégalo en Claude!'));
+}
+
+function genN8NPrompt(){
+  const wd=S.wd;
+  const ns=Object.values(S.nodes);
+  const cats={entrada:'Canal(es) de entrada',proceso:'Procesamiento',fuente:'Fuentes de contexto',
+    modelo:'LLM',salida:'Salida',obs:'Observabilidad',datos:'Almacenamiento',agente:'Agentes',custom:'Otros'};
+  const bycat={};
+  ns.forEach(n=>{const cat=C[n.type]?.cat||'custom';(bycat[cat]=bycat[cat]||[]).push(n);});
+
+  // Build architecture summary
+  let arch='## Arquitectura diseñada\n\n';
+  Object.entries(cats).forEach(([k,v])=>{
+    if(!bycat[k]) return;
+    arch+=`### ${v}\n`;
+    bycat[k].forEach(n=>{
+      const cp=C[n.type]||C.custom;
+      arch+=`- **${n.label||cp.l}** (${cp.d})\n`;
+    });
+    arch+='\n';
+  });
+
+  // Build flow description
+  const nodeMap={};
+  ns.forEach(n=>nodeMap[n.id]=n);
+  const cs=Object.values(S.conns);
+  if(cs.length){
+    arch+='### Flujo de datos\n';
+    cs.forEach((c,i)=>{
+      const fn=nodeMap[c.from],tn=nodeMap[c.to];
+      if(!fn||!tn) return;
+      arch+=`${i+1}. **${fn.label||C[fn.type]?.l||fn.type}** → **${tn.label||C[tn.type]?.l||tn.type}**\n`;
+    });
+    arch+='\n';
+  }
+
+  // Feature C: contratos JSON definidos en las conexiones
+  const contractConns=cs.filter(c=>c.fields&&c.fields.length&&nodeMap[c.from]&&nodeMap[c.to]);
+  if(contractConns.length){
+    arch+='### Contratos JSON entre nodos\n\n';
+    arch+='| Conexión | Campos que pasan |\n|----------|------------------|\n';
+    contractConns.forEach(c=>{
+      const fn=nodeMap[c.from],tn=nodeMap[c.to];
+      const fl=fn.label||C[fn.type]?.l||fn.type;
+      const tl=tn.label||C[tn.type]?.l||tn.type;
+      const flds=c.fields.map(f=>`${f.n} (${f.t||'string'})`).join(', ');
+      arch+=`| ${fl} → ${tl} | ${flds} |\n`;
+    });
+    arch+='\nRespeta estos contratos: cada tramo debe pasar exactamente estos campos, implementados con un nodo Set entre origen y destino. Donde el usuario definió expresiones de ejemplo, úsalas:\n';
+    contractConns.forEach(c=>{
+      const withEx=c.fields.filter(f=>f.ex);
+      if(!withEx.length) return;
+      const fn=nodeMap[c.from],tn=nodeMap[c.to];
+      arch+=`- ${fn.label||C[fn.type]?.l} → ${tn.label||C[tn.type]?.l}: ${withEx.map(f=>`${f.n} = ${f.ex}`).join('; ')}\n`;
+    });
+    arch+='\n';
+  }
+
+  // Wizard config summary
+  const conf=[];
+  if(wd.clasifica) conf.push(`Clasificador de intención activo. Etiquetas: ${wd.intents.join(', ')}`);
+  if(wd.registro)  conf.push('Tabla registro_usuarios con UPSERT por usuario (TIMESTAMPTZ)');
+  if(wd.mem)       conf.push('Memoria conversacional: Postgres Chat Memory (tabla s2_test)');
+  if(wd.rag!=='none') conf.push(`RAG tipo: ${wd.rag} (Qdrant, gemini-embedding-001, 3072 dims)`);
+  if(wd.obs)       conf.push('Observabilidad: Langfuse (REST API: Set → Code → HTTP Request Basic Auth)');
+  if(wd.sw)        conf.push('Cerebro encapsulado como sub-workflow con contrato JSON');
+  if(wd.schedule)  conf.push('Flujo de re-engagement programado (Schedule Trigger)');
+  conf.push(`Zona horaria: ${wd.timezone} — registrar en campos TIMESTAMPTZ`);
+  conf.push(`Modelo LLM: ${wd.llm} (vía OpenRouter — lmChatOpenRouter)`);
+  if(conf.length) arch+='### Configuración específica\n'+conf.map(c=>`- ${c}`).join('\n')+'\n\n';
+
+  return `# Generador de flujo n8n — PCIA M4
+
+Genera un flujo n8n completo en JSON válido e importable para el siguiente producto.
+Sigue todas las reglas del stack técnico y los patrones de documentación indicados.
+
+---
+
+## Stack técnico del entorno
+
+\`\`\`
+n8n:        v2.1.4 (Docker, self-hosted, Windows)
+BD:         Supabase / PostgreSQL
+Vector DB:  Qdrant v1.14.1
+LLM:        OpenRouter — nodo lmChatOpenRouter (modelo configurable)
+Embeddings: gemini-embedding-001 (3072 dimensiones)
+Canal:      Telegram Bot (principal)
+Timezone:   ${wd.timezone} — UTC-6 permanente sin horario de verano (México)
+\`\`\`
+
+---
+
+## Reglas obligatorias
+
+1. **Credenciales vacías**: \`"id": "", "name": "OpenRouter account"\` / \`"name": "Supabase"\` / \`"name": "Telegram Bot"\`
+2. **No usar Switch**: reemplazar con nodos IF encadenados (Switch causa error de importación en v2.1.4)
+3. **Timestamps**: usar \`TIMESTAMPTZ\` en Supabase. Zona: \`${wd.timezone}\`
+4. **Stickies — jerarquía**: color 6=canvas master, 7=sección, 4/5=nodo individual, 2=advertencia
+5. **Formato sticky de nodo**: \`Qué hace / Qué entra / Qué sale\`
+6. **Set (Contrato JSON)**: insertar un nodo Set antes de cada branch entry y antes de subworkflow calls
+7. **Qdrant metadata**: todos los campos bajo \`metadata.*\` en el payload
+8. **Splitter en Qdrant**: \`chunkSize: 10000\` para evitar doble-splitting
+9. **Clasificador**: agente (NO LLM Chain), temperature 0.1, maxTokens 20
+
+---
+
+## Antes de generar el JSON, responde:
+
+### 1. Contratos JSON por tramo
+Tabla: Nodo origen | Campos que salen | Nodo destino | Campos que entran
+
+### 2. ¿Qué branches conviene separar a subworkflow?
+(4+ nodos de lógica o lógica reutilizable)
+
+### 3. ¿Qué tablas Supabase necesita? (nombre, columnas, propósito)
+
+### 4. ¿Hay nodos de configuración inicial (desconectados, ejecutar una vez)?
+
+---
+
+## Patrones clave a aplicar
+
+**SELECT EXISTS** para verificar usuarios:
+\`\`\`sql
+SELECT EXISTS (SELECT 1 FROM registro_usuarios WHERE session_id = '{{ $json.telegram_id }}') AS usuario_existe;
+\`\`\`
+
+**UPSERT registro_usuarios**:
+\`\`\`sql
+INSERT INTO registro_usuarios (session_id, primer_contacto, ultima_interaccion)
+VALUES ('{{ $json.telegram_id }}', NOW(), NOW())
+ON CONFLICT (session_id) DO UPDATE SET ultima_interaccion = NOW();
+\`\`\`
+
+**information_schema** (incluir como nodo desconectado para meta-prompting):
+\`\`\`sql
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns WHERE table_name = 'nombre_tabla' ORDER BY ordinal_position;
+\`\`\`
+
+**Re-engagement** (si aplica):
+\`\`\`sql
+SELECT session_id, ultima_interaccion, status FROM registro_usuarios
+WHERE ultima_interaccion < NOW() - INTERVAL '24 hours' AND recordatorio = FALSE;
+\`\`\`
+
+---
+
+${arch}
+
+---
+
+## Formato de salida esperado
+
+\`\`\`json
+{
+  "name": "[Nombre del flujo]",
+  "nodes": [...],
+  "connections": {...},
+  "settings": { "executionOrder": "v1" },
+  "meta": { "instanceId": "" }
+}
+\`\`\`
+
+Al final incluir un sticky canvas master (color 6) con:
+- Qué hace el flujo completo
+- Tabla(s) Supabase que usa
+- Colecciones Qdrant que usa (si aplica)
+- Pasos de configuración post-importación
+`;
+}
+
+// ════════════════════════════════════════════════════════════
+// ZOOM / PAN
+// ════════════════════════════════════════════════════════════
+function initZoomPan(){
+  const wrap=document.getElementById('cwrap');
+  // Fix 4: scroll normal desplaza el canvas; Ctrl/Cmd + scroll (o pinch de trackpad) hace zoom
+  wrap.addEventListener('wheel',e=>{
+    e.preventDefault();
+    hideTip();
+    if(e.ctrlKey||e.metaKey){
+      const r=wrap.getBoundingClientRect();
+      const cx=e.clientX-r.left;
+      const cy=e.clientY-r.top;
+      zoom(e.deltaY<0?1.06:1/1.06,cx,cy);
+    } else {
+      S.vx-=e.deltaX;
+      S.vy-=e.deltaY;
+      applyView();
+    }
+  },{passive:false});
+  // Middle mouse button pan
+  wrap.addEventListener('mousedown',e=>{
+    if(e.button!==1) return;
+    e.preventDefault();
+    hideTip();
+    S.panState={sx:e.clientX,sy:e.clientY,ox:S.vx,oy:S.vy};
+    document.addEventListener('mousemove',onPanMove);
+    document.addEventListener('mouseup',onPanEnd);
+  });
+}
+function onPanMove(e){
+  if(!S.panState) return;
+  S.vx=S.panState.ox+(e.clientX-S.panState.sx);
+  S.vy=S.panState.oy+(e.clientY-S.panState.sy);
+  applyView();
+}
+function onPanEnd(e){
+  if(e.button===1){S.panState=null;document.removeEventListener('mousemove',onPanMove);document.removeEventListener('mouseup',onPanEnd);}
+}
+
+// ════════════════════════════════════════════════════════════
+// CONTRACT EDITOR
+// ════════════════════════════════════════════════════════════
+let _contractId=null;
+let _contractFields=[];
+
+function openContractEditor(connId){
+  _contractId=connId;
+  const cn=S.conns[connId];
+  if(!cn) return;
+  const fn=S.nodes[cn.from],tn=S.nodes[cn.to];
+  const fl=compOf(fn?.type).l, tl=compOf(tn?.type).l;
+  document.getElementById('contract-subtitle').textContent=`${fl} → ${tl}`;
+  _contractFields=[...(cn.fields||[])];
+  renderContractFields();
+  renderContractPreview();
+  show('ov-contract');
+}
+function renderContractFields(){
+  document.getElementById('contract-fields').innerHTML=_contractFields.map((f,i)=>
+    `<div class="swrow">
+      <input class="swin" value="${escA(f.n||'')}" placeholder="campo" oninput="_contractFields[${i}].n=this.value;renderContractPreview()">
+      <input class="swin" value="${escA(f.t||'string')}" placeholder="tipo" style="max-width:80px" oninput="_contractFields[${i}].t=this.value;renderContractPreview()">
+      <input class="swin" value="${escA(f.ex||'')}" placeholder="ej: {{ $json.message.chat.id }}" style="flex:2" oninput="_contractFields[${i}].ex=this.value">
+      <button class="btn del" style="padding:3px 8px;font-size:10px" onclick="_contractFields.splice(${i},1);renderContractFields();renderContractPreview()">✕</button>
+    </div>`).join('');
+}
+function renderContractPreview(){
+  const obj=Object.fromEntries(_contractFields.filter(f=>f.n).map(f=>[f.n,f.ex||`(${f.t||'string'})`]));
+  document.getElementById('contract-preview').textContent='// Set node — Contrato JSON\n'+JSON.stringify(obj,null,2);
+}
+function addContractField(){_contractFields.push({n:'',t:'string',ex:''});renderContractFields();renderContractPreview();}
+function saveContract(){
+  if(_contractId&&S.conns[_contractId]){
+    S.conns[_contractId].fields=_contractFields.filter(f=>f.n);
+    render();
+  }
+  hide('ov-contract');
+}
+
+// ════════════════════════════════════════════════════════════
+// MEMORY NODE PANEL
+// ════════════════════════════════════════════════════════════
+const MEM_TABLES={
+  memoria:`-- Tabla: s2_test (crea automáticamente el subnodo de memoria)
+-- session_id: chat.id de Telegram
+-- message: JSONB {type, content}
+
+-- Consultar historial de un usuario:
+SELECT * FROM s2_test WHERE session_id = '[chat_id]';
+
+-- Limpiar conversación:
+DELETE FROM s2_test WHERE session_id = '[chat_id]';`,
+  registro_usu:`-- Tabla: registro_usuarios
+CREATE TABLE registro_usuarios (
+  session_id         TEXT PRIMARY KEY,
+  primer_contacto    TIMESTAMPTZ DEFAULT NOW(),
+  ultima_interaccion TIMESTAMPTZ DEFAULT NOW(),
+  status             TEXT,
+  recordatorio       BOOLEAN DEFAULT FALSE,
+  timezone           TEXT DEFAULT 'America/Mexico_City'
+);
+-- UPSERT por mensaje:
+INSERT INTO registro_usuarios (session_id,primer_contacto,ultima_interaccion)
+VALUES ('{{ $json.telegram_id }}', NOW(), NOW())
+ON CONFLICT (session_id) DO UPDATE SET ultima_interaccion=NOW();`,
+  supabase:`-- Consultar esquema (copiar output para meta-prompting):
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = '[tu_tabla]'
+ORDER BY ordinal_position;`,
+  perfil:`-- Tabla: perfil_usuarios (ejemplo)
+CREATE TABLE perfil_usuarios (
+  session_id   TEXT PRIMARY KEY,
+  nombre       TEXT,
+  preferencias JSONB DEFAULT '{}',
+  creado_en    TIMESTAMPTZ DEFAULT NOW()
+);`,
+};
+function showMemPanel(nodeId){
+  const nd=S.nodes[nodeId];if(!nd) return;
+  const sql=MEM_TABLES[nd.type]||`-- Nodo de datos: ${compOf(nd.type).l}\n-- Ver Guía SQL para patrones de meta-prompting`;
+  const panel=document.getElementById('mem-panel');
+  panel.querySelector('h4').textContent=`🗄 ${nd.label||compOf(nd.type).l}`;
+  panel.querySelector('pre').textContent=sql;
+  panel.style.display='block';
+}
+function hideMemPanel(){document.getElementById('mem-panel').style.display='none';}
+
+// ════════════════════════════════════════════════════════════
+// FEATURE A — GUARDAR / CARGAR DIAGRAMA
+// ════════════════════════════════════════════════════════════
+function saveDiagram(){
+  if(!Object.keys(S.nodes).length){setStatus('No hay componentes para guardar');return;}
+  const data={v:1,nodes:S.nodes,conns:S.conns,wd:S.wd,nc:S.nc,cc:S.cc};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='arquitectura-agente.json';a.click();
+  setStatus('Diagrama guardado como JSON');
+}
+
+function loadDiagram(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    let data;
+    try{data=JSON.parse(reader.result);}
+    catch(err){setStatus('El archivo no es un JSON válido');return;}
+    if(!data||data.v===undefined){setStatus('El archivo no es un diagrama guardado (falta el campo "v")');return;}
+    if(typeof data.nodes!=='object'||typeof data.conns!=='object'){setStatus('El archivo no contiene nodos y conexiones válidos');return;}
+    const nodes={};
+    let maxN=0;
+    for(const[id,nd] of Object.entries(data.nodes||{})){
+      if(!nd||typeof nd.x!=='number'||typeof nd.y!=='number') continue;
+      const known=!!C[nd.type];
+      // Compatibilidad hacia adelante: tipo desconocido se carga como custom
+      nodes[id]={id,type:known?nd.type:'custom',x:nd.x,y:nd.y};
+      if(nd.label) nodes[id].label=nd.label;
+      else if(!known) nodes[id].label=String(nd.type);
+      if(nd.swData) nodes[id].swData=nd.swData;
+      const m=/^n(\d+)$/.exec(id); if(m) maxN=Math.max(maxN,+m[1]);
+    }
+    const conns={};
+    let maxC=0;
+    for(const[id,cn] of Object.entries(data.conns||{})){
+      if(!cn||!nodes[cn.from]||!nodes[cn.to]) continue;
+      conns[id]={id,from:cn.from,to:cn.to};
+      if(Array.isArray(cn.fields)) conns[id].fields=cn.fields.filter(f=>f&&f.n);
+      const m=/^c(\d+)$/.exec(id); if(m) maxC=Math.max(maxC,+m[1]);
+    }
+    S.nodes=nodes; S.conns=conns;
+    S.nc=Math.max(typeof data.nc==='number'?data.nc:1,maxN+1);
+    S.cc=Math.max(typeof data.cc==='number'?data.cc:1,maxC+1);
+    if(data.wd&&typeof data.wd==='object') S.wd={...S.wd,...data.wd};
+    S.sel=null; S.cFrom=null;
+    hideMemPanel(); hideTip();
+    resetView(); render();
+    setStatus(`Diagrama cargado: ${Object.keys(nodes).length} componentes, ${Object.keys(conns).length} conexiones`);
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('load-file').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  if(f) loadDiagram(f);
+  e.target.value='';
+});
+
+// ════════════════════════════════════════════════════════════
+// FEATURE D — TOOLTIP DE NODO AL HOVER
+// ════════════════════════════════════════════════════════════
+let _tipTimer=null;
+function tipEnter(id,el){
+  clearTimeout(_tipTimer);
+  _tipTimer=setTimeout(()=>{
+    if(S.drag) return;
+    const nd=S.nodes[id];
+    if(!nd) return;
+    const cp=compOf(nd.type);
+    const tip=document.getElementById('node-tip');
+    tip.querySelector('.tt-l').textContent=nd.label||cp.l;
+    tip.querySelector('.tt-d').textContent=cp.d;
+    // Medir primero (visible pero fuera de pantalla)
+    tip.style.left='-9999px'; tip.style.top='-9999px'; tip.style.display='block';
+    const tw=tip.offsetWidth, th=tip.offsetHeight;
+    // Posición desde coordenadas de pantalla del nodo (respeta zoom/pan)
+    const r=el.getBoundingClientRect();
+    let x=r.right+10;
+    if(x+tw>window.innerWidth-8) x=r.left-10-tw;
+    let y=r.top+r.height/2-th/2;
+    y=Math.max(8,Math.min(window.innerHeight-th-8,y));
+    tip.style.left=x+'px'; tip.style.top=y+'px';
+  },400);
+}
+function tipLeave(){clearTimeout(_tipTimer);hideTip();}
+function hideTip(){clearTimeout(_tipTimer);document.getElementById('node-tip').style.display='none';}
+
+// ════════════════════════════════════════════════════════════
+// FEATURE E — MINI-MAPA DE NAVEGACIÓN
+// ════════════════════════════════════════════════════════════
+const MM_W=160, MM_H=100;
+let _mmCollapsed=false;
+let _mmView=null; // {wr, s, ox, oy} para mapear clics
+
+function toggleMinimap(){
+  _mmCollapsed=!_mmCollapsed;
+  const mm=document.getElementById('minimap');
+  mm.classList.toggle('mm-collapsed',_mmCollapsed);
+  document.getElementById('mm-toggle').textContent=_mmCollapsed?'▴ Mapa':'▾';
+  if(!_mmCollapsed) renderMinimap();
+}
+
+function renderMinimap(){
+  if(_mmCollapsed) return;
+  const svg=document.getElementById('mm-svg');
+  if(!svg) return;
+  svg.innerHTML='';
+  const ns=Object.values(S.nodes);
+  const wrap=document.getElementById('cwrap');
+  const cw=wrap.clientWidth, ch=wrap.clientHeight;
+  // Región mundo visible actual
+  const vw={x:(0-S.vx)/S.vs, y:(0-S.vy)/S.vs, w:cw/S.vs, h:ch/S.vs};
+  // Región mundo total: nodos + viewport, con margen
+  let minX=vw.x, minY=vw.y, maxX=vw.x+vw.w, maxY=vw.y+vw.h;
+  ns.forEach(n=>{
+    minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);
+    maxX=Math.max(maxX,n.x+NW);maxY=Math.max(maxY,n.y+NH);
+  });
+  const pad=40;
+  const wr={x:minX-pad,y:minY-pad,w:maxX-minX+pad*2,h:maxY-minY+pad*2};
+  const s=Math.min(MM_W/wr.w,MM_H/wr.h);
+  const ox=(MM_W-wr.w*s)/2, oy=(MM_H-wr.h*s)/2;
+  _mmView={wr,s,ox,oy};
+  // Nodos
+  ns.forEach(n=>{
+    const r=svgEl('rect');
+    r.setAttribute('x',(n.x-wr.x)*s+ox);
+    r.setAttribute('y',(n.y-wr.y)*s+oy);
+    r.setAttribute('width',Math.max(2,NW*s));
+    r.setAttribute('height',Math.max(1.5,NH*s));
+    r.setAttribute('rx',1);
+    r.setAttribute('fill',compOf(n.type).col);
+    r.setAttribute('fill-opacity','0.85');
+    svg.appendChild(r);
+  });
+  // Rectángulo del viewport
+  const v=svgEl('rect');
+  v.setAttribute('x',(vw.x-wr.x)*s+ox);
+  v.setAttribute('y',(vw.y-wr.y)*s+oy);
+  v.setAttribute('width',vw.w*s);
+  v.setAttribute('height',vw.h*s);
+  v.setAttribute('fill','rgba(139,92,246,0.10)');
+  v.setAttribute('stroke','#8B5CF6');
+  v.setAttribute('stroke-width','1');
+  svg.appendChild(v);
+}
+
+document.getElementById('mm-svg').addEventListener('click',e=>{
+  if(!_mmView) return;
+  const{wr,s,ox,oy}=_mmView;
+  const wx=(e.offsetX-ox)/s+wr.x;
+  const wy=(e.offsetY-oy)/s+wr.y;
+  const wrap=document.getElementById('cwrap');
+  S.vx=wrap.clientWidth/2-wx*S.vs;
+  S.vy=wrap.clientHeight/2-wy*S.vs;
+  applyView();
+});
+
+// ════════════════════════════════════════════════════════════
+// TECLADO — Supr elimina, Esc cancela
+// ════════════════════════════════════════════════════════════
+document.addEventListener('keydown',e=>{
+  const tag=(e.target.tagName||'').toUpperCase();
+  if(tag==='INPUT'||tag==='TEXTAREA') return;
+  const modalOpen=[...document.querySelectorAll('.ov')].some(o=>getComputedStyle(o).display!=='none');
+  if(e.key==='Escape'){
+    if(modalOpen) return; // los modales tienen sus propios botones
+    if(S.cFrom){S.cFrom=null;render();}
+    else if(S.mode==='conn'){toggleConn();}
+    else{S.sel=null;hideMemPanel();hideTip();render();}
+    return;
+  }
+  if(modalOpen) return;
+  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();delSel();}
+});
+
+// ════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════
+renderPal();
+renderWiz();
+show('ov-wiz');
+initZoomPan();
+applyView();
+</script>
+</body>
+</html>
