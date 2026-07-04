@@ -175,7 +175,16 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
   <button class="btn" onclick="showPric()">$ Pricing</button>
   <button class="btn" onclick="showN8N()" style="border-color:#F59E0B;color:#F59E0B">⬡ Prompt n8n</button>
   <button class="btn" onclick="show('ov-sql')" style="border-color:#10B981;color:#10B981">📋 SQL</button>
-  <div id="tb-r"><span id="mode-lbl">Modo: Selección</span></div>
+  <div id="tb-r">
+    <a href="https://www.linkedin.com/in/omargaldamezc/" target="_blank" rel="noopener"
+       style="font-size:10px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--bdr);border-radius:5px;transition:border-color .12s"
+       onmouseover="this.style.borderColor='#0A66C2';this.style.color='#0A66C2'"
+       onmouseout="this.style.borderColor='var(--bdr)';this.style.color='var(--muted)'">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+      Omar Galdámez
+    </a>
+    <span id="mode-lbl" style="margin-left:6px">Modo: Selección</span>
+  </div>
 </div>
 
 <div id="pal"></div>
@@ -2099,17 +2108,28 @@ function genN8NPrompt(mode){
   }
 
   // Prompts definidos — incluir textualmente en el JSON generado
-  const promptNodes=ns.filter(n=>n.promptData?.system||n.promptData?.user);
+  const promptNodes=ns.filter(n=>n.promptData?.system||n.promptData?.user||n.promptData?.rules||n.promptData?.fewshot);
   if(promptNodes.length){
     arch+=`### Prompts definidos por nodo — usar EXACTAMENTE estos textos\n\n`;
     arch+=`Estos son los prompts exactos del usuario. Incorpóralos tal cual en los nodos AI Agent correspondientes. No los reformules ni mejores.\n\n`;
     promptNodes.forEach(n=>{
       const cp=C[n.type]||C.custom;
       const lbl=n.label||cp.l;
+      const pd=n.promptData;
       arch+=`#### ${cp.ic} ${lbl}\n\n`;
-      if(n.promptData.desc) arch+=`*Rol/descripción: ${n.promptData.desc}*\n\n`;
-      if(n.promptData.system) arch+=`**System Prompt:**\n\`\`\`\n${n.promptData.system}\n\`\`\`\n\n`;
-      if(n.promptData.user)   arch+=`**User Prompt (template con expresiones n8n):**\n\`\`\`\n${n.promptData.user}\n\`\`\`\n\n`;
+      if(pd.desc) arch+=`*Rol/descripción: ${pd.desc}*\n\n`;
+      if(pd.tone) arch+=`*Tono: ${pd.tone}*\n\n`;
+      if(pd.rules){
+        arch+=`**Reglas del negocio:**\n\`\`\`\n${pd.rules}\n\`\`\`\n\n`;
+      }
+      if(pd.fewshot){
+        arch+=`**Ejemplos de respuesta (few-shot):**\n\`\`\`\n${pd.fewshot}\n\`\`\`\n\n`;
+      }
+      if(pd.outfmt){
+        arch+=`**Estructura de salida:**\n\`\`\`\n${pd.outfmt}\n\`\`\`\n\n`;
+      }
+      if(pd.system) arch+=`**System Prompt (compilado):**\n\`\`\`\n${pd.system}\n\`\`\`\n\n`;
+      if(pd.user)   arch+=`**User Prompt (template con expresiones n8n):**\n\`\`\`\n${pd.user}\n\`\`\`\n\n`;
     });
   }
 
@@ -2269,6 +2289,11 @@ Al final incluir un sticky canvas master (color 6) con:
 - Tabla(s) Supabase que usa
 - Colecciones Qdrant que usa (si aplica)
 - Pasos de configuración post-importación
+
+---
+
+*Generado con n8nWizard — Diseñador de Arquitecturas de Agentes IA*
+*PCIA M4 · CENTRO Educación Continua · Omar Galdámez · linkedin.com/in/omargaldamezc*
 `;
 }
 
