@@ -30,6 +30,11 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
 
 /* ── PALETTE ── */
 #pal{background:var(--sur);border-right:1px solid var(--bdr);overflow-y:auto;padding:10px 6px}
+#flow-desc-wrap{padding:8px 8px 0;border-bottom:1px solid var(--bdr);margin-bottom:2px}
+#flow-desc-wrap label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:4px}
+#flow-desc{width:100%;background:var(--bg);border:1px solid var(--bdr);border-radius:5px;color:var(--txt);font-size:11px;font-family:system-ui,sans-serif;padding:6px 8px;resize:none;line-height:1.45;transition:border-color .12s}
+#flow-desc:focus{outline:none;border-color:var(--accl)}
+#flow-desc::placeholder{color:#4B5563}
 .ps h3{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;padding:0 6px;margin:10px 0 5px}
 .pi{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:11px;border:1px solid transparent}
 .pi:hover{background:var(--sur2);border-color:var(--bdr)}
@@ -106,7 +111,9 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
 .tab-btn:hover{color:var(--txt)}
 .tab-btn.on{color:var(--accl);border-bottom-color:var(--accl)}
 /* ── SEQ WRAP ── */
-#seq-wrap{display:none;overflow:auto;background:var(--bg);background-image:radial-gradient(circle,#1e293b 1px,transparent 1px);background-size:28px 28px;grid-column:2;grid-row:2}
+#seq-wrap{display:none;overflow:hidden;background:var(--bg);background-image:radial-gradient(circle,#1e293b 1px,transparent 1px);background-size:28px 28px;grid-column:2;grid-row:2}
+#seq-zoom-ctrl{position:absolute;left:12px;bottom:14px;display:flex;flex-direction:column;gap:4px;z-index:10}
+#seq-zoom-ctrl .btn{padding:3px 8px;font-size:11px}
 #cwrap{grid-column:2;grid-row:2}
 /* ── SEQ DIAGRAM ── */
 .seq-actor{cursor:grab}.seq-actor:active{cursor:grabbing}
@@ -118,8 +125,13 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
 #seq-info .si-sub{font-size:10px;color:var(--muted);margin-bottom:10px}
 #seq-info .si-sec{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px}
 #seq-info .si-field{font-family:monospace;font-size:9.5px;color:#a5b4fc;padding:2px 0}
+/* ── CREDIT WIDGET ── */
+#credit-widget{position:absolute;right:12px;bottom:36px;display:flex;flex-direction:column;align-items:flex-end;gap:5px;z-index:10}
+#credit-widget a{font-size:9px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:4px;padding:3px 7px;background:rgba(17,24,39,.85);border:1px solid var(--bdr);border-radius:5px;transition:all .12s;white-space:nowrap}
+#credit-widget a:hover{border-color:#0A66C2;color:#0A66C2}
+#credit-widget button{font-size:9px;padding:3px 9px;background:rgba(17,24,39,.85)}
 /* ── ZOOM CONTROLS ── */
-#zoom-ctrl{position:absolute;right:12px;bottom:36px;display:flex;flex-direction:column;gap:4px;z-index:10;align-items:center}
+#zoom-ctrl{position:absolute;right:12px;bottom:80px;display:flex;flex-direction:column;gap:4px;z-index:10;align-items:center}
 #zoom-ctrl .btn{width:28px;padding:4px 0;text-align:center;font-weight:700;font-size:13px}
 /* ── CONTRACT BADGE ── */
 .contract-badge{cursor:pointer}
@@ -168,6 +180,7 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
     <button class="btn" id="btn-seq-fields" onclick="toggleSeqFields()" style="border-color:var(--accl);color:var(--accl)" title="Mostrar/ocultar campos de contratos en los mensajes">≡ Campos</button>
     <button class="btn" onclick="seqShowAll()" title="Restaurar todos los actores ocultos">⊕ Mostrar todos</button>
     <div class="sep"></div>
+    <button class="btn" onclick="showNarrative()" title="Generar texto narrativo del flujo">📝 Narrativa</button>
     <button class="btn pri" onclick="doExpSeqSVG()">↓ SVG Secuencia</button>
   </span>
   <button class="btn pri" onclick="showExpMD()">⬡ Texto / Miro</button>
@@ -175,16 +188,7 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
   <button class="btn" onclick="showPric()">$ Pricing</button>
   <button class="btn" onclick="showN8N()" style="border-color:#F59E0B;color:#F59E0B">⬡ Prompt n8n</button>
   <button class="btn" onclick="show('ov-sql')" style="border-color:#10B981;color:#10B981">📋 SQL</button>
-  <div id="tb-r">
-    <a href="https://www.linkedin.com/in/omargaldamezc/" target="_blank" rel="noopener"
-       style="font-size:10px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--bdr);border-radius:5px;transition:border-color .12s"
-       onmouseover="this.style.borderColor='#0A66C2';this.style.color='#0A66C2'"
-       onmouseout="this.style.borderColor='var(--bdr)';this.style.color='var(--muted)'">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-      Omar Galdámez
-    </a>
-    <span id="mode-lbl" style="margin-left:6px">Modo: Selección</span>
-  </div>
+  <div id="tb-r"><span id="mode-lbl">Modo: Selección</span></div>
 </div>
 
 <div id="pal"></div>
@@ -224,14 +228,129 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
     <svg id="mm-svg" width="160" height="100"></svg>
     <button id="mm-toggle" onclick="toggleMinimap()" title="Colapsar mini-mapa">▾</button>
   </div>
+  <!-- CREDIT WIDGET -->
+  <div id="credit-widget">
+    <button class="btn" onclick="show('ov-guide')" style="font-size:9px;padding:3px 9px;background:rgba(17,24,39,.85)">? Cómo usar</button>
+    <a href="https://www.linkedin.com/in/omargaldamezc/" target="_blank" rel="noopener">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+      Omar Galdámez
+    </a>
+  </div>
 </div>
 <div id="node-tip"><div class="tt-l"></div><div class="tt-d"></div></div>
 
 <!-- SEQUENCE DIAGRAM -->
 <div id="seq-wrap" style="position:relative">
-  <svg id="seq-cv" style="display:block"></svg>
+  <svg id="seq-cv" width="100%" height="100%" style="display:block;cursor:grab"></svg>
   <div id="seq-info"></div>
+  <div id="seq-zoom-ctrl">
+    <button class="btn" onclick="seqZoom(1.2)" title="Acercar">+</button>
+    <button class="btn" onclick="seqZoom(1/1.2)" title="Alejar">−</button>
+    <button class="btn" onclick="seqResetView()" title="Restablecer vista">⌂</button>
+    <span id="seq-zoom-lbl" style="font-size:9px;color:var(--muted);text-align:center">100%</span>
+  </div>
 </div>
+</div>
+
+<!-- GUIDE / HOW TO USE -->
+<div class="ov" id="ov-guide" style="display:none">
+  <div class="mo wide" style="max-width:700px">
+    <h2>¿Cómo usar n8nWizard?</h2>
+    <p class="sub">Diseñador visual de arquitecturas para agentes IA en n8n · PCIA Módulo 4 · CENTRO Educación Continua</p>
+    <div style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding-right:4px">
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--acc);padding:8px 14px;font-size:11px;font-weight:700;color:#fff;letter-spacing:.04em">1 — Empezar con una plantilla</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          Haz clic en <strong>⬡ Plantillas</strong> en el toolbar. Elige una de las 10 plantillas predefinidas (simple, con memoria, RAG, multi-agente, agenda web, re-engagement…). Esto carga el canvas con los nodos y conexiones del patrón. También puedes arrastrar componentes desde el panel izquierdo y conectarlos manualmente.
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--sur2);padding:8px 14px;font-size:11px;font-weight:700;color:var(--accl);letter-spacing:.04em">2 — Editar el diagrama</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          <strong>Mover nodos:</strong> arrastra con clic izquierdo.<br>
+          <strong>Conectar:</strong> botón <em>⤳ Conectar</em> → clic en origen → clic en destino.<br>
+          <strong>Eliminar:</strong> selecciona un nodo o conexión y presiona <kbd style="background:var(--bg);border:1px solid var(--bdr);border-radius:3px;padding:1px 5px;font-size:10px">Delete</kbd> o usa <em>✕ Eliminar</em>.<br>
+          <strong>Zoom:</strong> <kbd style="background:var(--bg);border:1px solid var(--bdr);border-radius:3px;padding:1px 5px;font-size:10px">Ctrl + rueda</kbd> o botones +/− de la esquina. Pan con rueda del mouse.<br>
+          <strong>Renombrar:</strong> doble clic en cualquier nodo.
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--sur2);padding:8px 14px;font-size:11px;font-weight:700;color:#10B981;letter-spacing:.04em">3 — Definir contratos entre nodos</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          Haz clic en el badge <em>+ contrato</em> sobre cualquier conexión. Define los campos que pasan entre nodos (nombre, tipo, expresión n8n). Usa <em>↑ Heredar anterior</em> para propagar campos del nodo upstream, o <em>↓ Salida típica</em> para sugerir los campos que produce el nodo origen. Los presets te dan bloques completos de un clic.
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--sur2);padding:8px 14px;font-size:11px;font-weight:700;color:#EC4899;letter-spacing:.04em">4 — Definir prompts de LLMs y agentes</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          Doble clic en un nodo de tipo <em>Cerebro, LLM, Clasificador, Agente Especializado</em> u <em>Orquestador</em>. Se abre el editor de prompts con bloques guiados: <strong>tono</strong>, <strong>reglas del negocio</strong> (qué sí / qué no contestar), <strong>ejemplos few-shot</strong> y <strong>estructura de salida</strong>. Presiona <em>↓ Compilar</em> para unirlos en el system prompt, o escribe directo.
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--sur2);padding:8px 14px;font-size:11px;font-weight:700;color:#F59E0B;letter-spacing:.04em">5 — Configurar RAG y metadata</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          Doble clic en un nodo <em>RAG Naive, RAG Enhanced</em> o <em>Qdrant</em>. Configura colección, topK, modelo de embeddings, chunk size. En RAG Enhanced puedes agregar filtros de payload. Define los campos de metadata que se guardarán bajo <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px">metadata.*</code> en el payload de Qdrant.
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--sur2);padding:8px 14px;font-size:11px;font-weight:700;color:#6366F1;letter-spacing:.04em">6 — Generar el prompt para n8n</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          Haz clic en <strong style="color:#F59E0B">⬡ Prompt n8n</strong>. Elige el modo:<br>
+          <strong>✦ Claude de paga</strong> — el LLM hace preguntas aclaratorias antes de generar (contratos, tablas, subworkflows).<br>
+          <strong>◈ Claude gratuito</strong> — genera el JSON directamente.<br>
+          El prompt incluye la arquitectura, nombres exactos de nodos, contratos, prompts definidos, configuración RAG y las reglas del stack técnico. Cópialo y pégalo en Claude.
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--bdr);border-radius:7px;overflow:hidden">
+        <div style="background:var(--sur2);padding:8px 14px;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em">7 — Exportar y guardar</div>
+        <div style="padding:12px 14px;font-size:11px;line-height:1.7;color:var(--txt)">
+          <strong>⬇ Guardar / ⬆ Cargar</strong> — guarda el diagrama completo como JSON (incluye prompts, contratos, configuración RAG).<br>
+          <strong>↓ SVG</strong> — exporta el canvas como imagen vectorial.<br>
+          <strong>⬡ Texto / Miro</strong> — genera Markdown de arquitectura + bloque PlantUML.<br>
+          <strong>↔ Secuencia</strong> — cambia a la tab del diagrama de secuencia UML interactivo, donde puedes reordenar actores, ocultar nodos y ver los contratos.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CRÉDITOS -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--txt)">Omar Galdámez</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">PCIA Módulo 4 · CENTRO Educación Continua · Ciudad de México</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a href="https://www.linkedin.com/in/omargaldamezc/" target="_blank" rel="noopener"
+           style="display:flex;align-items:center;gap:6px;text-decoration:none;color:#0A66C2;font-size:11px;font-weight:600;padding:5px 12px;border:1px solid #0A66C2;border-radius:5px;transition:background .12s"
+           onmouseover="this.style.background='rgba(10,102,194,.12)'"
+           onmouseout="this.style.background='transparent'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          linkedin.com/in/omargaldamezc
+        </a>
+        <button class="btn pri" onclick="hide('ov-guide')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NARRATIVE -->
+<div class="ov" id="ov-narrative" style="display:none">
+  <div class="mo wide" style="max-width:660px;max-height:80vh;display:flex;flex-direction:column">
+    <h2>📝 Narrativa del Flujo</h2>
+    <p style="font-size:11px;color:var(--muted);margin:4px 0 12px">Descripción paso a paso generada desde el diagrama de secuencia.</p>
+    <div id="narrative-body" style="flex:1;overflow-y:auto;font-size:12px;line-height:1.7;color:var(--txt);background:var(--bg);border:1px solid var(--bdr);border-radius:6px;padding:14px;font-family:system-ui,sans-serif;white-space:pre-wrap"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="copyNarrative()" style="border-color:#10B981;color:#10B981">⎘ Copiar</button>
+      <button class="btn pri" onclick="hide('ov-narrative')">Cerrar</button>
+    </div>
+  </div>
 </div>
 
 <!-- WIZARD -->
@@ -691,6 +810,8 @@ const S = {
   swNode:null, swIn:[], swOut:[],
   vx:0, vy:0, vs:1, panState:null,
   seqOrder:null, seqHidden:new Set(), showSeqFields:true, seqSel:null,
+  seqVx:0, seqVy:0, seqVs:1, seqPan:null,
+  desc:'',
 };
 
 const nid=()=>'n'+(S.nc++);
@@ -1319,7 +1440,12 @@ function renderPal(){
     {l:'Almacenamiento',types:['supabase','qdrant','registro_usu']},
     {l:'Personalizado', types:['custom']},
   ];
-  document.getElementById('pal').innerHTML=secs.map(s=>`
+  const descVal=escA(S.desc);
+  document.getElementById('pal').innerHTML=`
+    <div id="flow-desc-wrap">
+      <label>Descripción del flujo</label>
+      <textarea id="flow-desc" rows="3" placeholder="¿Qué hace este agente? Contexto para el prompt y los stickies..." oninput="S.desc=this.value">${descVal}</textarea>
+    </div>`+secs.map(s=>`
     <div class="ps">
       <h3>${s.l}</h3>
       ${s.types.map(t=>{const cp=C[t];return`<div class="pi" onclick="addFromPal('${t}')" title="${cp?.d||''}">
@@ -1520,6 +1646,7 @@ function saveSW(){
 // ════════════════════════════════════════════════════════════
 let curTab='arch';
 
+let _seqZoomPanInited=false;
 function setTab(t){
   curTab=t;
   document.getElementById('cwrap').style.display=t==='arch'?'':'none';
@@ -1528,7 +1655,10 @@ function setTab(t){
   document.getElementById('tab-seq').classList.toggle('on',t==='seq');
   document.getElementById('arch-ctrls').style.display=t==='arch'?'flex':'none';
   document.getElementById('seq-ctrls').style.display=t==='seq'?'flex':'none';
-  if(t==='seq') renderSeq();
+  if(t==='seq'){
+    if(!_seqZoomPanInited){initSeqZoomPan();_seqZoomPanInited=true;}
+    renderSeq();
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1653,10 +1783,19 @@ function renderSeq(){
   const actors=baseOrder.filter(id=>!S.seqHidden.has(id));
   const topoIds=actors.filter(id=>id!=='__u__');
 
+  // Detectar nodos aislados (sin conexiones)
+  const allNodeIds=Object.keys(S.nodes);
+  const connectedIds=new Set();
+  Object.values(S.conns).forEach(c=>{connectedIds.add(c.from);connectedIds.add(c.to);});
+  const isolatedIds=new Set(allNodeIds.filter(id=>!connectedIds.has(id)));
+
   const svg=document.getElementById('seq-cv');
   if(!topoIds.length){
-    svg.setAttribute('width',600);svg.setAttribute('height',100);
-    svg.innerHTML='<rect width="600" height="100" fill="#070D1B"/><text x="40" y="55" fill="#6B7280" font-size="13" font-family="system-ui">Sin componentes — construye una arquitectura primero.</text>';
+    svg.innerHTML='';
+    const g0=svgEl('g');g0.setAttribute('transform',`translate(${S.seqVx},${S.seqVy}) scale(${S.seqVs})`);
+    const rb=svgEl('rect');rb.setAttribute('width',600);rb.setAttribute('height',100);rb.setAttribute('fill','#070D1B');g0.appendChild(rb);
+    const tb=svgEl('text');tb.setAttribute('x',40);tb.setAttribute('y',55);tb.setAttribute('fill','#6B7280');tb.setAttribute('font-size','13');tb.setAttribute('font-family','system-ui');tb.textContent='Sin componentes — construye una arquitectura primero.';g0.appendChild(tb);
+    svg.appendChild(g0);
     return;
   }
 
@@ -1668,18 +1807,24 @@ function renderSeq(){
   const actorX={};
   actors.forEach((id,i)=>{ actorX[id]=40+LFW*i+LFW/2; });
 
-  svg.setAttribute('width',totalW);svg.setAttribute('height',totalH);
   svg.innerHTML='';
 
-  // Defs (arrowhead)
+  // Root group with zoom/pan transform
+  const root=svgEl('g');root.setAttribute('id','seq-root');
+  root.setAttribute('transform',`translate(${S.seqVx},${S.seqVy}) scale(${S.seqVs})`);
+
+  // Defs (arrowhead) — attached directly to svg, not root (marker refs work independently of transforms)
   const defs=svgEl('defs');
   const mk=svgEl('marker');mk.setAttribute('id','seq-ah');mk.setAttribute('markerWidth','8');
   mk.setAttribute('markerHeight','6');mk.setAttribute('refX','7');mk.setAttribute('refY','3');mk.setAttribute('orient','auto');
   const poly=svgEl('polygon');poly.setAttribute('points','0 0,8 3,0 6');poly.style.fill='currentColor';
   mk.appendChild(poly);defs.appendChild(mk);svg.appendChild(defs);
 
-  // Background
-  const bg=svgEl('rect');bg.setAttribute('width',totalW);bg.setAttribute('height',totalH);bg.setAttribute('fill','#070D1B');svg.appendChild(bg);
+  // Background (large rect so pan reveals dark bg)
+  const bg=svgEl('rect');bg.setAttribute('x',-9999);bg.setAttribute('y',-9999);
+  bg.setAttribute('width',99999);bg.setAttribute('height',99999);bg.setAttribute('fill','#070D1B');
+  bg.style.cursor='grab';
+  root.appendChild(bg);
 
   function actorLabel(id){
     if(id==='__u__') return 'Usuario';
@@ -1696,13 +1841,20 @@ function renderSeq(){
     const x=actorX[id];
     const col=actorColor(id);
     const isSel=S.seqSel===id;
+    const isIsolated=id!=='__u__'&&isolatedIds.has(id);
 
-    // Lifeline (draw first so boxes are on top)
+    // Lifeline — red dashed for isolated, normal otherwise
     const ll=svgEl('line');
     ll.setAttribute('x1',x);ll.setAttribute('y1',TOP+BOXH);
     ll.setAttribute('x2',x);ll.setAttribute('y2',totalH-50);
-    ll.setAttribute('stroke',isSel?col:'#374151');ll.setAttribute('stroke-width',isSel?'1.5':'1');
-    ll.setAttribute('stroke-dasharray','6,4');svg.appendChild(ll);
+    if(isIsolated){
+      ll.setAttribute('stroke','#EF4444');ll.setAttribute('stroke-width','1.5');
+      ll.setAttribute('stroke-dasharray','4,4');ll.setAttribute('opacity','0.6');
+    } else {
+      ll.setAttribute('stroke',isSel?col:'#374151');ll.setAttribute('stroke-width',isSel?'1.5':'1');
+      ll.setAttribute('stroke-dasharray','6,4');
+    }
+    root.appendChild(ll);
 
     // Group for actor
     const g=svgEl('g');g.setAttribute('class','seq-actor');
@@ -1713,29 +1865,39 @@ function renderSeq(){
     r.setAttribute('x',x-BOXW/2);r.setAttribute('y',TOP);
     r.setAttribute('width',BOXW);r.setAttribute('height',BOXH);
     r.setAttribute('rx',6);r.setAttribute('fill',isSel?'#1F2937':'#131C2E');
-    r.setAttribute('stroke',col);r.setAttribute('stroke-width',isSel?'2.5':'1.5');
+    r.setAttribute('stroke',isIsolated?'#EF4444':col);r.setAttribute('stroke-width',isSel?'2.5':'1.5');
+    if(isIsolated) r.setAttribute('stroke-dasharray','4,3');
     g.appendChild(r);
 
     // Color bar top
     const bar=svgEl('rect');
     bar.setAttribute('x',x-BOXW/2);bar.setAttribute('y',TOP);
     bar.setAttribute('width',BOXW);bar.setAttribute('height',3);
-    bar.setAttribute('rx',3);bar.setAttribute('fill',col);g.appendChild(bar);
+    bar.setAttribute('rx',3);bar.setAttribute('fill',isIsolated?'#EF4444':col);g.appendChild(bar);
 
     // Label
     const t=svgEl('text');
     t.setAttribute('x',x);t.setAttribute('y',TOP+26);
-    t.setAttribute('text-anchor','middle');t.setAttribute('fill','#F9FAFB');
+    t.setAttribute('text-anchor','middle');t.setAttribute('fill',isIsolated?'#FCA5A5':'#F9FAFB');
     t.setAttribute('font-size','10.5');t.setAttribute('font-weight','600');
     t.setAttribute('font-family','system-ui,sans-serif');
     t.textContent=actorLabel(id);g.appendChild(t);
+
+    // Warning badge for isolated nodes
+    if(isIsolated){
+      const wt=svgEl('text');
+      wt.setAttribute('x',x);wt.setAttribute('y',TOP+BOXH+16);
+      wt.setAttribute('text-anchor','middle');wt.setAttribute('fill','#EF4444');
+      wt.setAttribute('font-size','9');wt.setAttribute('font-family','system-ui,sans-serif');
+      wt.textContent='⚠ sin conectar';g.appendChild(wt);
+    }
 
     // Category sublabel
     if(id!=='__u__'){
       const cat=C[S.nodes[id]?.type]?.cat||'';
       const sub=svgEl('text');
       sub.setAttribute('x',x);sub.setAttribute('y',TOP+BOXH-7);
-      sub.setAttribute('text-anchor','middle');sub.setAttribute('fill',col);
+      sub.setAttribute('text-anchor','middle');sub.setAttribute('fill',isIsolated?'#EF4444':col);
       sub.setAttribute('font-size','8');sub.setAttribute('font-family','system-ui,sans-serif');
       sub.textContent=cat.toUpperCase();g.appendChild(sub);
 
@@ -1776,7 +1938,7 @@ function renderSeq(){
       renderSeqInfo(S.seqSel);
     });
 
-    svg.appendChild(g);
+    root.appendChild(g);
   });
 
   // ── MESSAGES ──
@@ -1794,7 +1956,7 @@ function renderSeq(){
     ln.setAttribute('stroke',col);ln.setAttribute('stroke-width',msg.r?'1.2':'1.8');
     if(msg.r) ln.setAttribute('stroke-dasharray','7,4');
     ln.setAttribute('marker-end','url(#seq-ah)');ln.style.color=col;
-    svg.appendChild(ln);
+    root.appendChild(ln);
 
     // Message label
     const lbl=svgEl('text');
@@ -1802,7 +1964,7 @@ function renderSeq(){
     lbl.setAttribute('text-anchor','middle');lbl.setAttribute('fill',msg.r?'#6B7280':'#CBD5E1');
     lbl.setAttribute('font-size','9.5');lbl.setAttribute('font-family','system-ui,sans-serif');
     lbl.setAttribute('font-style',msg.r?'italic':'normal');
-    lbl.textContent=msg.l;svg.appendChild(lbl);
+    lbl.textContent=msg.l;root.appendChild(lbl);
 
     // Fields label (if showSeqFields and there are fields)
     if(S.showSeqFields&&msg.fields?.length){
@@ -1813,26 +1975,30 @@ function renderSeq(){
       flbl.setAttribute('font-size','8');flbl.setAttribute('font-family','monospace');
       flbl.setAttribute('opacity','0.75');
       flbl.textContent=flds.length>40?flds.slice(0,38)+'…':flds;
-      svg.appendChild(flbl);
+      root.appendChild(flbl);
     }
   });
 
   // ── BOTTOM MIRROR BOXES ──
   actors.forEach(id=>{
     const x=actorX[id]; const col=actorColor(id);
+    const isIsolated=id!=='__u__'&&isolatedIds.has(id);
     const r=svgEl('rect');
     r.setAttribute('x',x-BOXW/2);r.setAttribute('y',totalH-52);
     r.setAttribute('width',BOXW);r.setAttribute('height',BOXH);
     r.setAttribute('rx',6);r.setAttribute('fill','#131C2E');
-    r.setAttribute('stroke',col);r.setAttribute('stroke-width','1.5');
-    svg.appendChild(r);
+    r.setAttribute('stroke',isIsolated?'#EF4444':col);r.setAttribute('stroke-width','1.5');
+    if(isIsolated) r.setAttribute('stroke-dasharray','4,3');
+    root.appendChild(r);
     const t=svgEl('text');
     t.setAttribute('x',x);t.setAttribute('y',totalH-52+26);
-    t.setAttribute('text-anchor','middle');t.setAttribute('fill','#F9FAFB');
+    t.setAttribute('text-anchor','middle');t.setAttribute('fill',isIsolated?'#FCA5A5':'#F9FAFB');
     t.setAttribute('font-size','10.5');t.setAttribute('font-weight','600');
     t.setAttribute('font-family','system-ui,sans-serif');
-    t.textContent=actorLabel(id);svg.appendChild(t);
+    t.textContent=actorLabel(id);root.appendChild(t);
   });
+
+  svg.appendChild(root);
 }
 
 // ── SEQ DRAG HANDLERS ──
@@ -1842,7 +2008,8 @@ function onSeqMM(e){
   if(Math.abs(dx)>4) _seqDrag.moved=true;
   const wrap=document.getElementById('seq-wrap');
   const wRect=wrap.getBoundingClientRect();
-  const mouseX=e.clientX-wRect.left+wrap.scrollLeft;
+  // Convert screen coords to logical SVG coords (accounting for zoom/pan)
+  const mouseX=(e.clientX-wRect.left-S.seqVx)/S.seqVs;
   const LFW=160;
   const targetIdx=Math.max(1,Math.min(S.seqOrder.length-1,Math.floor((mouseX-40)/LFW)));
   const curIdx=S.seqOrder.indexOf(_seqDrag.id);
@@ -1870,6 +2037,148 @@ function toggleSeqFields(){
   S.showSeqFields=!S.showSeqFields;
   document.getElementById('btn-seq-fields').classList.toggle('on',S.showSeqFields);
   renderSeq();
+}
+
+// ── SEQ ZOOM / PAN ──
+function seqZoom(factor){
+  const wrap=document.getElementById('seq-wrap');
+  const cx=wrap.clientWidth/2, cy=wrap.clientHeight/2;
+  const newVs=Math.max(0.2,Math.min(4,S.seqVs*factor));
+  S.seqVx=cx-(cx-S.seqVx)*(newVs/S.seqVs);
+  S.seqVy=cy-(cy-S.seqVy)*(newVs/S.seqVs);
+  S.seqVs=newVs;
+  renderSeq();
+  document.getElementById('seq-zoom-lbl').textContent=Math.round(S.seqVs*100)+'%';
+}
+function seqResetView(){
+  S.seqVx=0;S.seqVy=0;S.seqVs=1;
+  renderSeq();
+  document.getElementById('seq-zoom-lbl').textContent='100%';
+}
+function initSeqZoomPan(){
+  const wrap=document.getElementById('seq-wrap');
+  // Wheel: pan (plain) or zoom (Ctrl)
+  wrap.addEventListener('wheel',e=>{
+    e.preventDefault();
+    if(e.ctrlKey){
+      const factor=e.deltaY<0?1.1:0.9;
+      const rect=wrap.getBoundingClientRect();
+      const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+      const newVs=Math.max(0.2,Math.min(4,S.seqVs*factor));
+      S.seqVx=mx-(mx-S.seqVx)*(newVs/S.seqVs);
+      S.seqVy=my-(my-S.seqVy)*(newVs/S.seqVs);
+      S.seqVs=newVs;
+      document.getElementById('seq-zoom-lbl').textContent=Math.round(S.seqVs*100)+'%';
+    } else {
+      S.seqVx-=e.deltaX;
+      S.seqVy-=e.deltaY;
+    }
+    renderSeq();
+  },{passive:false});
+  // Drag-to-pan on background (mousedown on SVG but not on actors)
+  const sv=document.getElementById('seq-cv');
+  sv.addEventListener('mousedown',e=>{
+    if(_seqDrag) return; // actor drag has priority
+    if(e.button!==0) return;
+    const startX=e.clientX,startY=e.clientY;
+    const startVx=S.seqVx,startVy=S.seqVy;
+    let panning=false;
+    sv.style.cursor='grabbing';
+    function mm(ev){
+      const dx=ev.clientX-startX,dy=ev.clientY-startY;
+      if(Math.abs(dx)>3||Math.abs(dy)>3) panning=true;
+      if(panning){S.seqVx=startVx+dx;S.seqVy=startVy+dy;renderSeq();}
+    }
+    function mu(){
+      sv.style.cursor='grab';
+      document.removeEventListener('mousemove',mm);
+      document.removeEventListener('mouseup',mu);
+    }
+    document.addEventListener('mousemove',mm);
+    document.addEventListener('mouseup',mu);
+  });
+}
+
+// ── NARRATIVE GENERATION ──
+function genNarrative(){
+  const topoIds=topoSort();
+  if(!topoIds.length) return 'Sin componentes — construye una arquitectura primero.';
+
+  const allNodeIds=Object.keys(S.nodes);
+  const connectedIds=new Set();
+  Object.values(S.conns).forEach(c=>{connectedIds.add(c.from);connectedIds.add(c.to);});
+  const isolatedIds=new Set(allNodeIds.filter(id=>!connectedIds.has(id)));
+
+  const msgs=genSeqMsgs(topoIds);
+  const lines=[];
+
+  lines.push('=== Flujo del Agente IA ===\n');
+  if(S.desc&&S.desc.trim()) lines.push(`Descripción: ${S.desc.trim()}\n`);
+
+  // Virtual: usuario envía
+  const firstIn=topoIds.find(id=>C[S.nodes[id]?.type]?.cat==='entrada');
+  if(firstIn){
+    const nd=S.nodes[firstIn];
+    const lbl=nd?.label||C[nd?.type]?.l||firstIn;
+    lines.push(`El usuario inicia la interacción enviando un mensaje que llega al nodo de entrada "${lbl}" (${C[nd?.type]?.l||nd?.type}).`);
+  }
+
+  // Walk connected nodes in topo order
+  let step=1;
+  topoIds.forEach(fromId=>{
+    const nd=S.nodes[fromId];
+    if(!nd) return;
+    const fromLbl=nd.label||C[nd.type]?.l||fromId;
+    const outMsgs=msgs.filter(m=>m.from===fromId&&m.to!=='__u__');
+    if(!outMsgs.length&&!isolatedIds.has(fromId)) return;
+
+    if(isolatedIds.has(fromId)){
+      lines.push(`\n⚠ Paso sin conectar — "${fromLbl}" (${C[nd.type]?.l||nd.type}): este nodo no recibe ni envía datos a ningún otro componente del flujo. Debe conectarse o eliminarse.`);
+      return;
+    }
+
+    outMsgs.forEach(msg=>{
+      const toNd=S.nodes[msg.to];
+      const toLbl=toNd?.label||C[toNd?.type]?.l||msg.to;
+      let para=`\nPaso ${step} — ${fromLbl} → ${toLbl}: ${msg.l}.`;
+      if(msg.fields?.length){
+        const fNames=msg.fields.map(f=>f.n).join(', ');
+        para+=` Transfiere los campos: ${fNames}.`;
+      }
+      // Add context from prompt/rag data
+      if(nd.promptData?.desc) para+=` Función declarada: "${nd.promptData.desc}".`;
+      if(nd.ragData?.collection) para+=` Consulta la colección RAG "${nd.ragData.collection}" (top ${nd.ragData.topk||5}).`;
+      lines.push(para);
+      step++;
+    });
+  });
+
+  // Virtual: salida al usuario
+  const lastOut=[...topoIds].reverse().find(id=>C[S.nodes[id]?.type]?.cat==='salida');
+  if(lastOut){
+    const nd=S.nodes[lastOut];
+    lines.push(`\nFinalmente, "${nd?.label||C[nd?.type]?.l||lastOut}" entrega la respuesta procesada al usuario.`);
+  }
+
+  // Summary of isolated nodes
+  const isoList=[...isolatedIds].map(id=>{
+    const nd=S.nodes[id];
+    return nd?.label||C[nd?.type]?.l||id;
+  });
+  if(isoList.length){
+    lines.push(`\n---\n⚠ Nodos sin conectar (${isoList.length}): ${isoList.join(', ')}. Estos pasos no forman parte del flujo activo.`);
+  }
+
+  return lines.join('\n');
+}
+function showNarrative(){
+  const text=genNarrative();
+  document.getElementById('narrative-body').textContent=text;
+  show('ov-narrative');
+}
+function copyNarrative(){
+  const text=document.getElementById('narrative-body').textContent;
+  navigator.clipboard.writeText(text).then(()=>setStatus('Narrativa copiada al portapapeles'));
 }
 
 // ── SEQ INFO PANEL ──
@@ -2032,6 +2341,9 @@ function genN8NPrompt(mode){
 
   // Build architecture summary
   let arch='## Arquitectura diseñada\n\n';
+  if(S.desc&&S.desc.trim()){
+    arch+=`> **Descripción del flujo:** ${S.desc.trim()}\n\n`;
+  }
   Object.entries(cats).forEach(([k,v])=>{
     if(!bycat[k]) return;
     arch+=`### ${v}\n`;
@@ -2165,9 +2477,7 @@ function genN8NPrompt(mode){
   const introText=mode==='free'
     ?'Genera el flujo n8n completo como JSON válido e importable. Implementa la arquitectura exactamente como se describe, sin hacer preguntas adicionales.'
     :'Genera un flujo n8n completo en JSON válido e importable para el siguiente producto.\nSigue todas las reglas del stack técnico y los patrones de documentación indicados.';
-  const webhookRule=hasWebhook?'\n10. **Webhook Entrada**: Response Mode = "Respond to Webhook". Incluir nodo "Respond to Webhook" al cierre del branch de webhook. El header CORS (`Access-Control-Allow-Origin: *`) va en el nodo Respond to Webhook, NO en el Webhook trigger.':'';
-  const calendarRule=hasCalendar?`\n${hasWebhook?12:11}. **Google Calendar — timezone**: el campo \`end\` del evento usar: \`DateTime.fromISO($json.slot, {zone: 'America/Mexico_City'}).plus({minutes: 30}).toISO()\`. Sin \`{zone}\`, Luxon interpreta el ISO local como UTC y el evento queda 6h adelantado. El Code node de slots debe convertir explícitamente UTC↔CDMX (UTC-6 permanente desde 2023).`:'';
-  const scheduleRule=hasSchedule?`\n${hasWebhook?13:hasCalendar?12:11}. **Schedule / Re-engagement**: columna \`recordatorio BOOLEAN DEFAULT FALSE\`. UPDATE a TRUE después de enviar mensaje. El UPSERT del flujo principal lo resetea a FALSE cuando el usuario regresa (DO UPDATE SET recordatorio = FALSE). Comparación \`ultima_interaccion < NOW() - INTERVAL '...'\` funciona en UTC sin conversión porque ambos valores son UTC.`:'';
+
 
   const clarifySection=mode==='paid'?`---
 
@@ -2211,16 +2521,25 @@ Timezone:   ${wd.timezone} — UTC-6 permanente sin horario de verano (México)
 
 ## Reglas obligatorias
 
-1. **Credenciales vacías**: \`"id": "", "name": "OpenRouter account"\` / \`"name": "Supabase"\` / \`"name": "Telegram Bot"\`
-2. **No usar Switch**: reemplazar con nodos IF encadenados (Switch causa error de importación en v2.1.4)
-3. **Timestamps**: usar \`TIMESTAMPTZ\` en Supabase. Zona: \`${wd.timezone}\`
-4. **Stickies — jerarquía**: color 6=canvas master, 7=sección, 4/5=nodo individual, 2=advertencia
-5. **Formato sticky de nodo**: \`Qué hace / Qué entra / Qué sale\`
-6. **Set (Contrato JSON)**: insertar un nodo Set antes de cada branch entry y antes de subworkflow calls
-7. **Qdrant metadata**: todos los campos bajo \`metadata.*\` en el payload
-8. **Splitter en Qdrant**: \`chunkSize: 10000\` para evitar doble-splitting
-9. **Clasificador**: agente (NO LLM Chain), temperature 0.1, maxTokens 20${webhookRule}${calendarRule}${scheduleRule}
-${ns.length?`${hasWebhook?(hasCalendar?(hasSchedule?14:13):(hasSchedule?13:11)):(hasCalendar?(hasSchedule?13:12):(hasSchedule?12:10))}. **Nombres de nodos**: usar exactamente los nombres de la tabla "Nombres exactos de nodos". Las expresiones \`$('Nombre')\` fallan si el nombre difiere por un espacio o mayúscula.`:''}
+${(()=>{
+  const rules=[
+    '**Credenciales vacías**: `"id": "", "name": "OpenRouter account"` / `"name": "Supabase"` / `"name": "Telegram Bot"`',
+    '**No usar Switch**: reemplazar con nodos IF encadenados (Switch causa error de importación en v2.1.4)',
+    `**Timestamps**: usar \`TIMESTAMPTZ\` en Supabase. Zona: \`${wd.timezone}\``,
+    '**Stickies — jerarquía**: color 6=canvas master, 7=sección, 4/5=nodo individual, 2=advertencia',
+    '**Formato sticky de nodo**: `Qué hace / Qué entra / Qué sale`',
+    '**Set (Contrato JSON)**: insertar un nodo Set antes de cada branch entry y antes de subworkflow calls',
+    '**Qdrant metadata**: todos los campos bajo `metadata.*` en el payload',
+    '**Splitter en Qdrant**: `chunkSize: 10000` para evitar doble-splitting',
+    '**Clasificador**: agente (NO LLM Chain), temperature 0.1, maxTokens 20',
+    '**Un nodo por función — nunca compartir**: cada operación de base de datos, LLM o API debe ser su propio nodo aunque sea el mismo tipo. Un nodo Postgres que verifica usuario ≠ el nodo Postgres que hace UPSERT ≠ el nodo Postgres que actualiza status. Nombrarlos por etapa: `Verificar Usuario`, `Registrar o Actualizar`, `Actualizar Status`, `Guardar Interacción`, etc. Conectar varios branches al mismo nodo Postgres hace el flujo ilegible y rompe el tracking de ejecuciones en n8n.',
+  ];
+  if(hasWebhook) rules.push('**Webhook Entrada**: Response Mode = "Respond to Webhook". Incluir nodo "Respond to Webhook" al cierre del branch de webhook. El header CORS (`Access-Control-Allow-Origin: *`) va en el nodo Respond to Webhook, NO en el Webhook trigger.');
+  if(hasCalendar) rules.push('**Google Calendar — timezone**: el campo `end` del evento usar: `DateTime.fromISO($json.slot, {zone: \'America/Mexico_City\'}).plus({minutes: 30}).toISO()`. Sin `{zone}`, Luxon interpreta el ISO local como UTC y el evento queda 6h adelantado. El Code node de slots debe convertir explícitamente UTC↔CDMX (UTC-6 permanente desde 2023).');
+  if(hasSchedule) rules.push('**Schedule / Re-engagement**: columna `recordatorio BOOLEAN DEFAULT FALSE`. UPDATE a TRUE después de enviar mensaje. El UPSERT del flujo principal lo resetea a FALSE cuando el usuario regresa (DO UPDATE SET recordatorio = FALSE). Comparación `ultima_interaccion < NOW() - INTERVAL \'...\'` funciona en UTC sin conversión porque ambos valores son UTC.');
+  if(ns.length) rules.push('**Nombres de nodos**: usar exactamente los nombres de la tabla "Nombres exactos de nodos". Las expresiones `$(\'Nombre\')` fallan si el nombre difiere por un espacio o mayúscula.');
+  return rules.map((r,i)=>`${i+1}. ${r}`).join('\n');
+})()}
 
 ---
 
@@ -2285,7 +2604,7 @@ ${arch}
 \`\`\`
 
 Al final incluir un sticky canvas master (color 6) con:
-- Qué hace el flujo completo
+- **Propósito del flujo:**${S.desc&&S.desc.trim()?' '+S.desc.trim():' [describe aquí qué hace el agente]'}
 - Tabla(s) Supabase que usa
 - Colecciones Qdrant que usa (si aplica)
 - Pasos de configuración post-importación
@@ -2921,7 +3240,7 @@ function saveRagData(){
 // ════════════════════════════════════════════════════════════
 function saveDiagram(){
   if(!Object.keys(S.nodes).length){setStatus('No hay componentes para guardar');return;}
-  const data={v:1,nodes:S.nodes,conns:S.conns,wd:S.wd,nc:S.nc,cc:S.cc};
+  const data={v:1,nodes:S.nodes,conns:S.conns,wd:S.wd,nc:S.nc,cc:S.cc,desc:S.desc};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);a.download='arquitectura-agente.json';a.click();
@@ -2960,9 +3279,11 @@ function loadDiagram(file){
     S.nc=Math.max(typeof data.nc==='number'?data.nc:1,maxN+1);
     S.cc=Math.max(typeof data.cc==='number'?data.cc:1,maxC+1);
     if(data.wd&&typeof data.wd==='object') S.wd={...S.wd,...data.wd};
+    if(typeof data.desc==='string') S.desc=data.desc;
     S.sel=null; S.cFrom=null;
     hideMemPanel(); hideTip();
     resetView(); render();
+    renderPal(); // refresh description textarea
     setStatus(`Diagrama cargado: ${Object.keys(nodes).length} componentes, ${Object.keys(conns).length} conexiones`);
   };
   reader.readAsText(file);
