@@ -109,9 +109,15 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
 #seq-wrap{display:none;overflow:auto;background:var(--bg);background-image:radial-gradient(circle,#1e293b 1px,transparent 1px);background-size:28px 28px;grid-column:2;grid-row:2}
 #cwrap{grid-column:2;grid-row:2}
 /* ── SEQ DIAGRAM ── */
-.seq-actor{cursor:default}
+.seq-actor{cursor:grab}.seq-actor:active{cursor:grabbing}
 .seq-msg-line{stroke-width:1.8}
 .seq-msg-ret{stroke-dasharray:7,4;stroke-width:1.3}
+/* ── SEQ INFO PANEL ── */
+#seq-info{position:absolute;right:14px;top:14px;width:230px;background:rgba(17,24,39,.97);border:1px solid var(--bdr);border-radius:8px;padding:12px;font-size:11px;z-index:20;display:none;max-height:calc(100vh - 120px);overflow-y:auto}
+#seq-info h4{font-size:12px;font-weight:700;margin-bottom:4px}
+#seq-info .si-sub{font-size:10px;color:var(--muted);margin-bottom:10px}
+#seq-info .si-sec{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px}
+#seq-info .si-field{font-family:monospace;font-size:9.5px;color:#a5b4fc;padding:2px 0}
 /* ── ZOOM CONTROLS ── */
 #zoom-ctrl{position:absolute;right:12px;bottom:36px;display:flex;flex-direction:column;gap:4px;z-index:10;align-items:center}
 #zoom-ctrl .btn{width:28px;padding:4px 0;text-align:center;font-weight:700;font-size:13px}
@@ -158,6 +164,10 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
     <button class="btn pri" onclick="doExpSVG()">↓ SVG</button>
   </span>
   <span id="seq-ctrls" style="display:none;align-items:center;gap:6px">
+    <button class="btn" onclick="seqResetOrder()" title="Volver al orden automático (topológico)">↺ Reset orden</button>
+    <button class="btn" id="btn-seq-fields" onclick="toggleSeqFields()" style="border-color:var(--accl);color:var(--accl)" title="Mostrar/ocultar campos de contratos en los mensajes">≡ Campos</button>
+    <button class="btn" onclick="seqShowAll()" title="Restaurar todos los actores ocultos">⊕ Mostrar todos</button>
+    <div class="sep"></div>
     <button class="btn pri" onclick="doExpSeqSVG()">↓ SVG Secuencia</button>
   </span>
   <button class="btn pri" onclick="showExpMD()">⬡ Texto / Miro</button>
@@ -209,8 +219,9 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
 <div id="node-tip"><div class="tt-l"></div><div class="tt-d"></div></div>
 
 <!-- SEQUENCE DIAGRAM -->
-<div id="seq-wrap">
+<div id="seq-wrap" style="position:relative">
   <svg id="seq-cv" style="display:block"></svg>
+  <div id="seq-info"></div>
 </div>
 </div>
 
@@ -278,11 +289,68 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
 <div class="ov" id="ov-n8n" style="display:none">
   <div class="mo wide">
     <h2>Prompt para generar flujo n8n</h2>
-    <p class="sub">Copia este prompt y pégalo en Claude. Incluye tu arquitectura y todas las instrucciones del stack M4.</p>
-    <pre class="exptxt" id="n8n-content" style="max-height:400px"></pre>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button id="n8n-btn-paid" class="btn on" onclick="switchN8NMode('paid')">✦ Claude de paga — reverse prompting</button>
+      <button id="n8n-btn-free" class="btn" onclick="switchN8NMode('free')">◈ Claude gratuito — genera directo</button>
+    </div>
+    <p class="sub" id="n8n-sub">Hace preguntas aclaratorias antes de generar el JSON (recomendado para flujos complejos).</p>
+    <pre class="exptxt" id="n8n-content" style="max-height:360px"></pre>
     <div class="mof">
       <button class="btn" onclick="copyN8N()">Copiar</button>
       <button class="btn pri" onclick="hide('ov-n8n')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- RAG METADATA EDITOR -->
+<div class="ov" id="ov-rag" style="display:none">
+  <div class="mo">
+    <h2>⬡ Configuración RAG — <span id="rag-lbl"></span></h2>
+    <p class="sub">Define la colección Qdrant, los parámetros de búsqueda y los campos de metadata del payload.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Colección Qdrant</label>
+        <input class="swin" id="rag-collection" type="text" style="width:100%" placeholder="ej. conocimiento_producto">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Top K (resultados)</label>
+        <input class="swin" id="rag-topk" type="number" style="width:100%" value="5" min="1" max="20">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Modelo de embeddings</label>
+        <input class="swin" id="rag-embed" type="text" style="width:100%" placeholder="gemini-embedding-001" value="gemini-embedding-001">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Chunk size</label>
+        <input class="swin" id="rag-chunk" type="number" style="width:100%" value="10000" min="100">
+      </div>
+    </div>
+    <!-- Filtros de payload (solo enhanced) -->
+    <div id="rag-filter-wrap" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600">Filtros de payload <span style="font-size:9px;color:var(--muted);font-weight:400">(RAG Enhanced — campo debe estar en metadata.*)</span></span>
+        <button class="btn" style="padding:3px 10px;font-size:10px" onclick="addRagFilter()">+ Filtro</button>
+      </div>
+      <div id="rag-filters"></div>
+    </div>
+    <!-- Campos de metadata -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <span style="font-size:11px;font-weight:600">Campos de metadata</span>
+          <span style="font-size:9px;color:var(--muted);margin-left:6px">Se guardan bajo <code style="background:var(--bg);padding:1px 4px;border-radius:3px">metadata.*</code> en el payload de Qdrant</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" style="padding:3px 10px;font-size:10px;border-color:#D97706;color:#D97706" onclick="addRagMetaPreset()">⬡ Preset</button>
+          <button class="btn" style="padding:3px 10px;font-size:10px" onclick="addRagMeta()">+ Campo</button>
+        </div>
+      </div>
+      <div id="rag-meta-fields"></div>
+    </div>
+    <pre class="swpre" id="rag-preview" style="font-size:9px;max-height:120px"></pre>
+    <div class="mof">
+      <button class="btn" onclick="hide('ov-rag')">Cancelar</button>
+      <button class="btn pri" onclick="saveRagData()">Guardar</button>
     </div>
   </div>
 </div>
@@ -292,10 +360,18 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
   <div class="mo">
     <h2>Contrato JSON — campos que pasan</h2>
     <p class="sub" id="contract-subtitle">Define los campos del Set node entre estos dos componentes.</p>
+    <div style="margin-bottom:14px">
+      <div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Presets de campos frecuentes — clic para agregar</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px" id="preset-chips"></div>
+    </div>
     <div style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="font-size:11px;font-weight:600">Campos</span>
-        <button class="btn" style="padding:3px 10px;font-size:10px" onclick="addContractField()">+ Campo</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn" id="inherit-btn" style="padding:3px 10px;font-size:10px;display:none;border-color:#10B981;color:#10B981" onclick="inheritFields()">↑ Heredar anterior</button>
+          <button class="btn" id="suggest-output-btn" style="padding:3px 10px;font-size:10px;display:none;border-color:#8B5CF6;color:#8B5CF6" onclick="suggestNodeOutput()">↓ Salida típica</button>
+          <button class="btn" style="padding:3px 10px;font-size:10px" onclick="addContractField()">+ Campo</button>
+        </div>
       </div>
       <div id="contract-fields"></div>
     </div>
@@ -303,6 +379,68 @@ body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,s
     <div class="mof">
       <button class="btn" onclick="hide('ov-contract')">Cancelar</button>
       <button class="btn pri" onclick="saveContract()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROMPT EDITOR -->
+<div class="ov" id="ov-prompt" style="display:none">
+  <div class="mo wide">
+    <h2>🧠 Prompts — <span id="pe-lbl"></span></h2>
+    <p class="sub">Define el system prompt y el user prompt con campos dinámicos del flujo.</p>
+    <div style="margin-bottom:12px">
+      <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Nombre del nodo</label>
+      <input class="swin" id="pe-label" type="text" style="width:100%">
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:flex-end">
+      <div style="flex:1">
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Descripción / Rol del nodo</label>
+        <input class="swin" id="pe-desc" type="text" placeholder="ej. Asistente de atención al cliente para tienda de ropa" style="width:100%">
+      </div>
+      <button class="btn pri" onclick="autoGenPrompts()" style="white-space:nowrap;flex-shrink:0">⬡ Auto-generar prompts</button>
+    </div>
+    <!-- ── BLOQUES DEL SYSTEM PROMPT ── -->
+    <div style="border:1px solid var(--bdr);border-radius:7px;margin-bottom:14px;overflow:hidden">
+      <div style="padding:8px 12px;background:var(--sur2);display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none" onclick="togglePEBlocks()">
+        <span style="font-size:10px;font-weight:700;color:var(--accl);text-transform:uppercase;letter-spacing:.06em">⚙ Bloques del system prompt</span>
+        <span id="pe-blk-tog" style="font-size:9px;color:var(--muted)">▴ ocultar</span>
+      </div>
+      <div id="pe-blk-body" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+        <div>
+          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Tono y personalidad</label>
+          <input class="swin" id="pe-tone" type="text" style="width:100%" placeholder="ej. Amigable pero profesional, conciso, sin tecnicismos, español de México">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Reglas del negocio — ¿Qué sí y qué no contestar?</label>
+          <textarea class="swin" id="pe-rules" rows="3" style="width:100%;resize:vertical;font-size:10.5px;line-height:1.6" placeholder="✅ SÍ: precios, horarios, disponibilidad de productos&#10;❌ NO: datos de otros clientes, información de competidores, temas fuera del negocio"></textarea>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Ejemplos de respuestas (few-shot)</label>
+          <textarea class="swin" id="pe-fewshot" rows="4" style="width:100%;resize:vertical;font-size:10.5px;line-height:1.6" placeholder="Usuario: ¿cuánto cuesta el plan pro?&#10;Asistente: El plan pro cuesta $299/mes e incluye...&#10;&#10;Usuario: necesito hablar con alguien urgente&#10;Asistente: Entiendo, te conecto con un asesor ahora mismo."></textarea>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Estructura de salida <span style="font-weight:400;font-style:italic">(opcional — si el LLM debe devolver formato específico)</span></label>
+          <textarea class="swin" id="pe-outfmt" rows="2" style="width:100%;resize:vertical;font-size:10.5px;line-height:1.6" placeholder='Ej: Responde ÚNICAMENTE con JSON válido: {"respuesta": "...", "intent": "CONVERSACION|FAQ|ACCION"}&#10;O deja vacío para texto libre.'></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <button class="btn" onclick="compilePEBlocks()" style="border-color:#10B981;color:#10B981;font-size:11px">↓ Compilar en System Prompt</button>
+        </div>
+      </div>
+    </div>
+    <!-- ── SYSTEM PROMPT (resultado compilado o manual) ── -->
+    <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">System Prompt <span style="font-weight:400;font-style:italic;font-size:9px">(compila los bloques o escribe directo)</span></label>
+    <textarea class="swin" id="pe-system" rows="5" style="width:100%;resize:vertical;font-family:monospace;font-size:10.5px;line-height:1.6;margin-bottom:12px" placeholder="Eres un asistente de IA..."></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">User Prompt (template)</label>
+      <span style="font-size:9px;color:var(--muted)">Clic en campo → inserta en cursor ↓</span>
+    </div>
+    <div id="pe-field-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px"></div>
+    <textarea class="swin" id="pe-user" rows="4" style="width:100%;resize:vertical;font-family:monospace;font-size:10.5px;line-height:1.6;margin-bottom:12px" placeholder="Mensaje: {{ $json.mensaje }}&#10;Historial: {{ $('Memoria').item.json.historial }}"></textarea>
+    <div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Vista previa</div>
+    <pre class="swpre" id="pe-preview" style="max-height:120px;font-size:9.5px"></pre>
+    <div class="mof">
+      <button class="btn" onclick="hide('ov-prompt')">Cancelar</button>
+      <button class="btn pri" onclick="savePromptData()">Guardar</button>
     </div>
   </div>
 </div>
@@ -474,6 +612,34 @@ const PAT = [
   {id:'multiagt',  ico:'🎯', lbl:'Multi-agente con router',  dsc:'Orquestador que distribuye a agentes especializados.',
    nodes:[{t:'telegram',x:CX,y:60},{t:'normalizador',x:CX,y:185},{t:'orquestador',x:CX,y:310},{t:'agente_esp',x:CX-250,y:450},{t:'agente_esp',x:CX,y:450},{t:'agente_esp',x:CX+250,y:450},{t:'memoria',x:CX-250,y:310},{t:'rag_enhanced',x:CX+250,y:310},{t:'llm',x:CX,y:570},{t:'langfuse',x:CX+280,y:185},{t:'router_out',x:CX,y:685}],
    conns:[[0,1],[1,2],[2,3],[2,4],[2,5],[6,3],[7,5],[3,8],[4,8],[5,8],[8,9],[8,10]]},
+  {id:'rag_ingest', ico:'📥', lbl:'Ingesta RAG',             dsc:'Carga docs desde Drive o webhook local → chunking → Qdrant.',
+   nodes:[{t:'gdrive_in',x:CX-120,y:60},{t:'webhook_in',x:CX+120,y:60},{t:'code_node',x:CX,y:185},{t:'set_contrato',x:CX,y:310},{t:'qdrant',x:CX,y:435},{t:'resp_http',x:CX,y:560}],
+   conns:[[0,2],[1,2],[2,3],[3,4],[4,5]]},
+  {id:'agenda_web', ico:'📅', lbl:'Agenda Web',              dsc:'Webhook POST → Switch por tipo → consultar calendar / agendar cita / guardar mensaje.',
+   nodes:[
+     {t:'webhook_in',  x:CX,       y:60},
+     {t:'if_node',     x:CX,       y:185},
+     {t:'gcal_in',     x:CX-240,   y:310},
+     {t:'code_node',   x:CX-240,   y:435},
+     {t:'llm_chain',   x:CX-240,   y:560},
+     {t:'resp_http',   x:CX-240,   y:685},
+     {t:'gcal_out',    x:CX,       y:310},
+     {t:'gmail_out',   x:CX,       y:435},
+     {t:'resp_http',   x:CX,       y:560},
+     {t:'supabase',    x:CX+240,   y:310},
+     {t:'set_contrato',x:CX+240,   y:435},
+     {t:'resp_http',   x:CX+240,   y:560},
+   ],
+   conns:[[0,1],[1,2],[2,3],[3,4],[4,5],[1,6],[6,7],[7,8],[1,9],[9,10],[10,11]]},
+  {id:'reengagement', ico:'⏰', lbl:'Re-engagement',         dsc:'Schedule periódico → consulta inactivos en Supabase → mensaje por status → marca como contactado.',
+   nodes:[
+     {t:'schedule',    x:CX,       y:60},
+     {t:'registro_usu',x:CX,       y:185},
+     {t:'code_node',   x:CX,       y:310},
+     {t:'resp_tel',    x:CX,       y:435},
+     {t:'supabase',    x:CX,       y:560},
+   ],
+   conns:[[0,1],[1,2],[2,3],[3,4]]},
 ];
 
 // ════════════════════════════════════════════════════════════
@@ -515,6 +681,7 @@ const S = {
       schedule:false, timezone:'America/Mexico_City'},
   swNode:null, swIn:[], swOut:[],
   vx:0, vy:0, vs:1, panState:null,
+  seqOrder:null, seqHidden:new Set(), showSeqFields:true, seqSel:null,
 };
 
 const nid=()=>'n'+(S.nc++);
@@ -631,6 +798,41 @@ function renderNodes(){
         st.setAttribute('x',NW-23);st.setAttribute('y',15);
         st.setAttribute('fill','#c4b5fd');st.setAttribute('font-size',9);
         st.textContent='SW';g.appendChild(st);
+      }
+    }
+
+    // RAG badge — punto naranja si el nodo tiene metadata RAG definida (top-right corner)
+    if(showIcon&&nd.ragData&&(nd.ragData.collection||nd.ragData.meta?.length)){
+      const rd=svgEl('circle');
+      rd.setAttribute('cx',NW-10);rd.setAttribute('cy',10);rd.setAttribute('r',5);
+      rd.setAttribute('fill','#F59E0B');rd.setAttribute('stroke','#070D1B');
+      rd.setAttribute('stroke-width','1.5');
+      g.appendChild(rd);
+    }
+
+    // Prompt badge — punto rosa si el nodo tiene system/user prompt definido (esquina inferior izquierda)
+    if(showIcon&&nd.promptData&&(nd.promptData.system||nd.promptData.user)){
+      const pd=svgEl('circle');
+      pd.setAttribute('cx',10);pd.setAttribute('cy',NH-10);pd.setAttribute('r',5);
+      pd.setAttribute('fill','#EC4899');pd.setAttribute('stroke','#070D1B');
+      pd.setAttribute('stroke-width','1.5');
+      g.appendChild(pd);
+    }
+
+    // Indicador "nueva info" — pequeño punto verde si el nodo recibe conexiones de fuente/datos/modelo
+    if(showIcon){
+      const hasNewCtx=Object.values(S.conns).some(c=>{
+        if(c.to!==id) return false;
+        const src=S.nodes[c.from];
+        const cat=C[src?.type]?.cat;
+        return cat==='fuente'||cat==='datos'||cat==='modelo';
+      });
+      if(hasNewCtx){
+        const ndot=svgEl('circle');
+        ndot.setAttribute('cx',NW-10);ndot.setAttribute('cy',NH-10);ndot.setAttribute('r',5);
+        ndot.setAttribute('fill','#10B981');ndot.setAttribute('stroke','#070D1B');
+        ndot.setAttribute('stroke-width','1.5');
+        g.appendChild(ndot);
       }
     }
 
@@ -879,13 +1081,16 @@ function onNodeClick(e,id){
   else hideMemPanel();
   render();
 }
-// Feature B: doble clic — subworkflow abre modal de contrato, el resto edita etiqueta
+// Feature B: doble clic — LLM/agentes abren editor de prompts, subworkflow abre contrato, resto edita etiqueta
 function onNodeDbl(e,id){
   e.stopPropagation();
   if(S.mode==='conn') return;
   hideTip();
   const nd=S.nodes[id];
   if(!nd) return;
+  if(PE_TYPES.includes(nd.type)){openPromptEditor(id);return;}
+  const RAG_TYPES=['rag_naive','rag_enhanced','rag_multi','qdrant'];
+  if(RAG_TYPES.includes(nd.type)){openRagEditor(id);return;}
   if((C[nd.type]?.sw)||nd.swData){openSW(id);return;}
   const cur=nd.label||compOf(nd.type).l;
   const v=prompt('Etiqueta del componente:',cur);
@@ -1417,7 +1622,7 @@ function genSeqMsgs(topoIds){
       const key=`${ft}→${tt}`;
       const info=MSG_MAP[key]||{l:`→ ${C[tt]?.l||tt}`,r:false};
       const col=info.r?'#6B7280':(C[ft]?.col||'#9CA3AF');
-      msgs.push({from:fromId,to:c.to,l:info.l,r:info.r,col});
+      msgs.push({from:fromId,to:c.to,l:info.l,r:info.r,col,fields:c.fields||[]});
     });
   });
 
@@ -1429,124 +1634,313 @@ function genSeqMsgs(topoIds){
 }
 
 // ════════════════════════════════════════════════════════════
-// RENDER SEQUENCE DIAGRAM
+// RENDER SEQUENCE DIAGRAM — interactivo
 // ════════════════════════════════════════════════════════════
+let _seqDrag=null;
+
 function renderSeq(){
-  const topoIds=topoSort();
+  // Determinar orden de actores
+  const baseOrder=S.seqOrder||['__u__',...topoSort()];
+  const actors=baseOrder.filter(id=>!S.seqHidden.has(id));
+  const topoIds=actors.filter(id=>id!=='__u__');
+
+  const svg=document.getElementById('seq-cv');
   if(!topoIds.length){
-    document.getElementById('seq-cv').innerHTML=
-      '<text x="40" y="60" fill="#6B7280" font-size="14" font-family="system-ui">Sin componentes — construye una arquitectura primero.</text>';
+    svg.setAttribute('width',600);svg.setAttribute('height',100);
+    svg.innerHTML='<rect width="600" height="100" fill="#070D1B"/><text x="40" y="55" fill="#6B7280" font-size="13" font-family="system-ui">Sin componentes — construye una arquitectura primero.</text>';
     return;
   }
 
-  const actors=['__u__',...topoIds];
   const msgs=genSeqMsgs(topoIds);
-
-  const LFW=150, BOXW=130, BOXH=40, TOP=20, MSTART=100, MGAP=52;
+  const LFW=160, BOXW=138, BOXH=42, TOP=16, MSTART=90, MGAP=S.showSeqFields?58:48;
   const totalW=actors.length*LFW+80;
-  const totalH=MSTART+msgs.length*MGAP+100;
+  const totalH=MSTART+msgs.length*MGAP+80;
 
   const actorX={};
   actors.forEach((id,i)=>{ actorX[id]=40+LFW*i+LFW/2; });
 
-  const svg=document.getElementById('seq-cv');
-  svg.setAttribute('width',totalW);
-  svg.setAttribute('height',totalH);
+  svg.setAttribute('width',totalW);svg.setAttribute('height',totalH);
   svg.innerHTML='';
 
-  // Defs
+  // Defs (arrowhead)
   const defs=svgEl('defs');
-  const mkF=svgEl('marker');
-  mkF.setAttribute('id','seq-ah');mkF.setAttribute('markerWidth','8');
-  mkF.setAttribute('markerHeight','6');mkF.setAttribute('refX','7');mkF.setAttribute('refY','3');
-  mkF.setAttribute('orient','auto');
-  const polyF=svgEl('polygon');polyF.setAttribute('points','0 0,8 3,0 6');polyF.style.fill='currentColor';
-  mkF.appendChild(polyF);defs.appendChild(mkF);svg.appendChild(defs);
+  const mk=svgEl('marker');mk.setAttribute('id','seq-ah');mk.setAttribute('markerWidth','8');
+  mk.setAttribute('markerHeight','6');mk.setAttribute('refX','7');mk.setAttribute('refY','3');mk.setAttribute('orient','auto');
+  const poly=svgEl('polygon');poly.setAttribute('points','0 0,8 3,0 6');poly.style.fill='currentColor';
+  mk.appendChild(poly);defs.appendChild(mk);svg.appendChild(defs);
 
   // Background
-  const bgr=svgEl('rect');bgr.setAttribute('width',totalW);bgr.setAttribute('height',totalH);
-  bgr.setAttribute('fill','#070D1B');svg.appendChild(bgr);
+  const bg=svgEl('rect');bg.setAttribute('width',totalW);bg.setAttribute('height',totalH);bg.setAttribute('fill','#070D1B');svg.appendChild(bg);
 
-  // Helper: actor label
   function actorLabel(id){
     if(id==='__u__') return 'Usuario';
-    const nd=S.nodes[id];
-    const l=nd?.label||C[nd?.type]?.l||id;
-    return l.length>15?l.slice(0,14)+'…':l;
+    const nd=S.nodes[id]; const l=nd?.label||C[nd?.type]?.l||id;
+    return l.length>14?l.slice(0,13)+'…':l;
   }
   function actorColor(id){
     if(id==='__u__') return '#10B981';
     return C[S.nodes[id]?.type]?.col||'#374151';
   }
 
-  // Draw boxes + lifelines (top)
-  actors.forEach(id=>{
+  // ── ACTOR BOXES + LIFELINES ──
+  actors.forEach((id,i)=>{
     const x=actorX[id];
-    // Box
+    const col=actorColor(id);
+    const isSel=S.seqSel===id;
+
+    // Lifeline (draw first so boxes are on top)
+    const ll=svgEl('line');
+    ll.setAttribute('x1',x);ll.setAttribute('y1',TOP+BOXH);
+    ll.setAttribute('x2',x);ll.setAttribute('y2',totalH-50);
+    ll.setAttribute('stroke',isSel?col:'#374151');ll.setAttribute('stroke-width',isSel?'1.5':'1');
+    ll.setAttribute('stroke-dasharray','6,4');svg.appendChild(ll);
+
+    // Group for actor
+    const g=svgEl('g');g.setAttribute('class','seq-actor');
+    g.style.cursor=id==='__u__'?'pointer':'grab';
+
+    // Box background
     const r=svgEl('rect');
     r.setAttribute('x',x-BOXW/2);r.setAttribute('y',TOP);
     r.setAttribute('width',BOXW);r.setAttribute('height',BOXH);
-    r.setAttribute('rx',5);r.setAttribute('fill','#1F2937');
-    r.setAttribute('stroke',actorColor(id));r.setAttribute('stroke-width','1.5');
-    svg.appendChild(r);
+    r.setAttribute('rx',6);r.setAttribute('fill',isSel?'#1F2937':'#131C2E');
+    r.setAttribute('stroke',col);r.setAttribute('stroke-width',isSel?'2.5':'1.5');
+    g.appendChild(r);
+
+    // Color bar top
+    const bar=svgEl('rect');
+    bar.setAttribute('x',x-BOXW/2);bar.setAttribute('y',TOP);
+    bar.setAttribute('width',BOXW);bar.setAttribute('height',3);
+    bar.setAttribute('rx',3);bar.setAttribute('fill',col);g.appendChild(bar);
+
     // Label
     const t=svgEl('text');
-    t.setAttribute('x',x);t.setAttribute('y',TOP+25);
+    t.setAttribute('x',x);t.setAttribute('y',TOP+26);
     t.setAttribute('text-anchor','middle');t.setAttribute('fill','#F9FAFB');
     t.setAttribute('font-size','10.5');t.setAttribute('font-weight','600');
     t.setAttribute('font-family','system-ui,sans-serif');
-    t.textContent=actorLabel(id);svg.appendChild(t);
-    // Lifeline
-    const ll=svgEl('line');
-    ll.setAttribute('x1',x);ll.setAttribute('y1',TOP+BOXH);
-    ll.setAttribute('x2',x);ll.setAttribute('y2',totalH-60);
-    ll.setAttribute('stroke','#374151');ll.setAttribute('stroke-width','1.2');
-    ll.setAttribute('stroke-dasharray','6,4');
-    svg.appendChild(ll);
+    t.textContent=actorLabel(id);g.appendChild(t);
+
+    // Category sublabel
+    if(id!=='__u__'){
+      const cat=C[S.nodes[id]?.type]?.cat||'';
+      const sub=svgEl('text');
+      sub.setAttribute('x',x);sub.setAttribute('y',TOP+BOXH-7);
+      sub.setAttribute('text-anchor','middle');sub.setAttribute('fill',col);
+      sub.setAttribute('font-size','8');sub.setAttribute('font-family','system-ui,sans-serif');
+      sub.textContent=cat.toUpperCase();g.appendChild(sub);
+
+      // × hide button (top-right of box)
+      const xbg=svgEl('g');xbg.style.cursor='pointer';xbg.style.opacity='0';
+      const xr=svgEl('rect');
+      xr.setAttribute('x',x+BOXW/2-18);xr.setAttribute('y',TOP+1);
+      xr.setAttribute('width',16);xr.setAttribute('height',16);
+      xr.setAttribute('rx',3);xr.setAttribute('fill','rgba(239,68,68,.8)');
+      const xt=svgEl('text');
+      xt.setAttribute('x',x+BOXW/2-10);xt.setAttribute('y',TOP+13);
+      xt.setAttribute('text-anchor','middle');xt.setAttribute('fill','#fff');
+      xt.setAttribute('font-size','10');xt.setAttribute('font-weight','700');xt.textContent='×';
+      xbg.appendChild(xr);xbg.appendChild(xt);
+      xbg.addEventListener('click',e=>{e.stopPropagation();seqHideActor(id);});
+      g.appendChild(xbg);
+
+      // Show × on hover
+      g.addEventListener('mouseenter',()=>{xbg.style.opacity='1';});
+      g.addEventListener('mouseleave',()=>{xbg.style.opacity='0';});
+
+      // Drag to reorder
+      g.addEventListener('mousedown',e=>{
+        if(e.target===xr||e.target===xt) return;
+        e.preventDefault();e.stopPropagation();
+        if(!S.seqOrder) S.seqOrder=[...baseOrder];
+        _seqDrag={id,startX:e.clientX};
+        document.addEventListener('mousemove',onSeqMM);
+        document.addEventListener('mouseup',onSeqMU);
+      });
+    }
+
+    // Click → select actor + show info
+    g.addEventListener('click',e=>{
+      if(_seqDrag?.moved) return;
+      S.seqSel=(S.seqSel===id?null:id);
+      renderSeq();
+      renderSeqInfo(S.seqSel);
+    });
+
+    svg.appendChild(g);
   });
 
-  // Draw messages
+  // ── MESSAGES ──
   msgs.forEach((msg,i)=>{
     const y=MSTART+i*MGAP;
-    const x1=actorX[msg.from], x2=actorX[msg.to];
+    const x1=actorX[msg.from],x2=actorX[msg.to];
     if(!x1||!x2) return;
     const col=msg.col||'#9CA3AF';
-    // Line
+    const midX=(x1+x2)/2;
+
+    // Arrow line
     const ln=svgEl('line');
     ln.setAttribute('x1',x1);ln.setAttribute('y1',y);
     ln.setAttribute('x2',x2);ln.setAttribute('y2',y);
-    ln.setAttribute('stroke',col);
-    ln.setAttribute('stroke-width',msg.r?'1.2':'1.8');
+    ln.setAttribute('stroke',col);ln.setAttribute('stroke-width',msg.r?'1.2':'1.8');
     if(msg.r) ln.setAttribute('stroke-dasharray','7,4');
-    ln.setAttribute('marker-end','url(#seq-ah)');
-    ln.style.color=col;
+    ln.setAttribute('marker-end','url(#seq-ah)');ln.style.color=col;
     svg.appendChild(ln);
-    // Label
-    const midX=(x1+x2)/2;
+
+    // Message label
     const lbl=svgEl('text');
-    lbl.setAttribute('x',midX);lbl.setAttribute('y',y-7);
+    lbl.setAttribute('x',midX);lbl.setAttribute('y',y-8);
     lbl.setAttribute('text-anchor','middle');lbl.setAttribute('fill',msg.r?'#6B7280':'#CBD5E1');
     lbl.setAttribute('font-size','9.5');lbl.setAttribute('font-family','system-ui,sans-serif');
     lbl.setAttribute('font-style',msg.r?'italic':'normal');
     lbl.textContent=msg.l;svg.appendChild(lbl);
+
+    // Fields label (if showSeqFields and there are fields)
+    if(S.showSeqFields&&msg.fields?.length){
+      const flds=msg.fields.map(f=>f.n).join(' · ');
+      const flbl=svgEl('text');
+      flbl.setAttribute('x',midX);flbl.setAttribute('y',y+14);
+      flbl.setAttribute('text-anchor','middle');flbl.setAttribute('fill',col);
+      flbl.setAttribute('font-size','8');flbl.setAttribute('font-family','monospace');
+      flbl.setAttribute('opacity','0.75');
+      flbl.textContent=flds.length>40?flds.slice(0,38)+'…':flds;
+      svg.appendChild(flbl);
+    }
   });
 
-  // Bottom boxes (mirror)
+  // ── BOTTOM MIRROR BOXES ──
   actors.forEach(id=>{
-    const x=actorX[id];
+    const x=actorX[id]; const col=actorColor(id);
     const r=svgEl('rect');
-    r.setAttribute('x',x-BOXW/2);r.setAttribute('y',totalH-60);
+    r.setAttribute('x',x-BOXW/2);r.setAttribute('y',totalH-52);
     r.setAttribute('width',BOXW);r.setAttribute('height',BOXH);
-    r.setAttribute('rx',5);r.setAttribute('fill','#1F2937');
-    r.setAttribute('stroke',actorColor(id));r.setAttribute('stroke-width','1.5');
+    r.setAttribute('rx',6);r.setAttribute('fill','#131C2E');
+    r.setAttribute('stroke',col);r.setAttribute('stroke-width','1.5');
     svg.appendChild(r);
     const t=svgEl('text');
-    t.setAttribute('x',x);t.setAttribute('y',totalH-60+25);
+    t.setAttribute('x',x);t.setAttribute('y',totalH-52+26);
     t.setAttribute('text-anchor','middle');t.setAttribute('fill','#F9FAFB');
     t.setAttribute('font-size','10.5');t.setAttribute('font-weight','600');
     t.setAttribute('font-family','system-ui,sans-serif');
     t.textContent=actorLabel(id);svg.appendChild(t);
   });
+}
+
+// ── SEQ DRAG HANDLERS ──
+function onSeqMM(e){
+  if(!_seqDrag) return;
+  const dx=e.clientX-_seqDrag.startX;
+  if(Math.abs(dx)>4) _seqDrag.moved=true;
+  const wrap=document.getElementById('seq-wrap');
+  const wRect=wrap.getBoundingClientRect();
+  const mouseX=e.clientX-wRect.left+wrap.scrollLeft;
+  const LFW=160;
+  const targetIdx=Math.max(1,Math.min(S.seqOrder.length-1,Math.floor((mouseX-40)/LFW)));
+  const curIdx=S.seqOrder.indexOf(_seqDrag.id);
+  if(targetIdx!==curIdx){
+    const o=[...S.seqOrder];
+    o.splice(curIdx,1); o.splice(targetIdx,0,_seqDrag.id);
+    S.seqOrder=o; renderSeq();
+  }
+}
+function onSeqMU(){
+  document.removeEventListener('mousemove',onSeqMM);
+  document.removeEventListener('mouseup',onSeqMU);
+  setTimeout(()=>{_seqDrag=null;},50);
+}
+
+// ── SEQ CONTROLS ──
+function seqHideActor(id){
+  S.seqHidden.add(id);
+  if(S.seqSel===id){S.seqSel=null;renderSeqInfo(null);}
+  renderSeq();
+}
+function seqShowAll(){S.seqHidden.clear();renderSeq();}
+function seqResetOrder(){S.seqOrder=null;S.seqSel=null;renderSeq();renderSeqInfo(null);}
+function toggleSeqFields(){
+  S.showSeqFields=!S.showSeqFields;
+  document.getElementById('btn-seq-fields').classList.toggle('on',S.showSeqFields);
+  renderSeq();
+}
+
+// ── SEQ INFO PANEL ──
+function renderSeqInfo(id){
+  const panel=document.getElementById('seq-info');
+  if(!id){panel.style.display='none';return;}
+  const isUser=id==='__u__';
+  const nd=S.nodes[id];
+  const cp=isUser?{l:'Usuario',ic:'👤',cat:'',col:'#10B981'}:(compOf(nd?.type)||{});
+  const lbl=isUser?'Usuario':(nd?.label||cp.l);
+
+  // Outgoing contracts from this actor
+  const outConns=Object.values(S.conns).filter(c=>c.from===id&&c.fields?.length);
+  const inConns=Object.values(S.conns).filter(c=>c.to===id&&c.fields?.length);
+
+  let html=`<h4 style="color:${cp.col||'#F9FAFB'}">${cp.ic||''} ${lbl}</h4>
+    <div class="si-sub">${isUser?'Actor virtual (usuario final)':cp.l+(cp.cat?` · ${cp.cat}`:'')}</div>`;
+
+  // Prompt data
+  if(nd?.promptData?.system){
+    html+=`<div class="si-sec">System Prompt</div>
+      <div style="font-size:9px;color:#a5b4fc;line-height:1.5;background:var(--bg);padding:5px 7px;border-radius:4px;font-family:monospace;max-height:80px;overflow:hidden">${escA(nd.promptData.system.slice(0,200))}${nd.promptData.system.length>200?'…':''}</div>`;
+  }
+
+  if(inConns.length){
+    html+=`<div class="si-sec">Campos que recibe</div>`;
+    inConns.forEach(c=>{
+      const src=S.nodes[c.from]; const srcLbl=src?.label||compOf(src?.type).l;
+      html+=`<div style="margin-bottom:4px"><span style="font-size:9px;color:var(--muted)">${srcLbl} →</span><br>`;
+      html+=c.fields.map(f=>`<div class="si-field">${f.n} <span style="color:var(--muted)">(${f.t||'string'})</span>${f.ex?`<br><span style="color:#4B5563;font-size:8.5px">${f.ex}</span>`:''}</div>`).join('');
+      html+=`</div>`;
+    });
+  }
+
+  if(outConns.length){
+    html+=`<div class="si-sec">Campos que envía</div>`;
+    outConns.forEach(c=>{
+      const dst=S.nodes[c.to]; const dstLbl=dst?.label||compOf(dst?.type).l;
+      html+=`<div style="margin-bottom:4px"><span style="font-size:9px;color:var(--muted)">→ ${dstLbl}</span><br>`;
+      html+=c.fields.map(f=>`<div class="si-field">${f.n} <span style="color:var(--muted)">(${f.t||'string'})</span></div>`).join('');
+      html+=`</div>`;
+    });
+  }
+
+  if(!inConns.length&&!outConns.length){
+    html+=`<div style="font-size:10px;color:var(--muted);margin-top:6px">Sin contratos definidos.<br>Abre el editor de contratos desde el canvas.</div>`;
+  }
+
+  // RAG data
+  const RAG_TYPES_SI=['rag_naive','rag_enhanced','rag_multi','qdrant'];
+  if(nd?.ragData?.collection||nd?.ragData?.meta?.length){
+    const d=nd.ragData;
+    html+=`<div class="si-sec">Configuración RAG</div>`;
+    if(d.collection) html+=`<div class="si-field">colección: <span style="color:#F59E0B">${d.collection}</span></div>`;
+    html+=`<div class="si-field">topK: ${d.topk||5} · chunk: ${d.chunk||10000}</div>`;
+    if(d.filters?.length){
+      html+=`<div style="font-size:9px;color:var(--muted);margin-top:4px">Filtros:</div>`;
+      d.filters.forEach(f=>{html+=`<div class="si-field">${f.field} ${f.op} "${f.value}"</div>`;});
+    }
+    if(d.meta?.length){
+      html+=`<div style="font-size:9px;color:var(--muted);margin-top:4px">Metadata:</div>`;
+      d.meta.forEach(f=>{html+=`<div class="si-field">metadata.${f.n} <span style="color:var(--muted)">(${f.t})</span></div>`;});
+    }
+  }
+
+  html+=`<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">`;
+  if(!isUser&&PE_TYPES.includes(nd?.type)){
+    html+=`<button class="btn" style="font-size:10px;padding:3px 9px" onclick="hide('seq-info-dummy');openPromptEditor('${id}')">🧠 Editar prompts</button>`;
+  }
+  if(!isUser&&RAG_TYPES_SI.includes(nd?.type)){
+    html+=`<button class="btn" style="font-size:10px;padding:3px 9px;border-color:#F59E0B;color:#F59E0B" onclick="openRagEditor('${id}')">⬡ Config RAG</button>`;
+  }
+  if(!isUser){
+    html+=`<button class="btn del" style="font-size:10px;padding:3px 9px" onclick="seqHideActor('${id}')">✕ Ocultar</button>`;
+  }
+  html+=`<button class="btn" style="font-size:10px;padding:3px 9px" onclick="S.seqSel=null;renderSeqInfo(null);renderSeq()">× Cerrar</button>`;
+  html+=`</div>`;
+
+  panel.innerHTML=html;
+  panel.style.display='block';
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1595,16 +1989,31 @@ function genPlantUML(){
 // ════════════════════════════════════════════════════════════
 // N8N PROMPT GENERATOR
 // ════════════════════════════════════════════════════════════
+let _n8nMode='paid';
 function showN8N(){
-  document.getElementById('n8n-content').textContent=genN8NPrompt();
+  _n8nMode='paid';
+  document.getElementById('n8n-btn-paid').classList.add('on');
+  document.getElementById('n8n-btn-free').classList.remove('on');
+  document.getElementById('n8n-sub').textContent='Hace preguntas aclaratorias antes de generar el JSON (recomendado para flujos complejos).';
+  document.getElementById('n8n-content').textContent=genN8NPrompt('paid');
   show('ov-n8n');
+}
+function switchN8NMode(mode){
+  _n8nMode=mode;
+  document.getElementById('n8n-btn-paid').classList.toggle('on',mode==='paid');
+  document.getElementById('n8n-btn-free').classList.toggle('on',mode==='free');
+  document.getElementById('n8n-sub').textContent=mode==='paid'
+    ?'Hace preguntas aclaratorias antes de generar el JSON (recomendado para flujos complejos).'
+    :'Genera el JSON de forma inmediata con la arquitectura definida. Ideal para prototipos rápidos.';
+  document.getElementById('n8n-content').textContent=genN8NPrompt(mode);
 }
 function copyN8N(){
   navigator.clipboard.writeText(document.getElementById('n8n-content').textContent)
     .then(()=>setStatus('¡Prompt copiado — pégalo en Claude!'));
 }
 
-function genN8NPrompt(){
+function genN8NPrompt(mode){
+  if(!mode) mode=_n8nMode||'paid';
   const wd=S.wd;
   const ns=Object.values(S.nodes);
   const cats={entrada:'Canal(es) de entrada',proceso:'Procesamiento',fuente:'Fuentes de contexto',
@@ -1673,10 +2082,96 @@ function genN8NPrompt(){
   conf.push(`Modelo LLM: ${wd.llm} (vía OpenRouter — lmChatOpenRouter)`);
   if(conf.length) arch+='### Configuración específica\n'+conf.map(c=>`- ${c}`).join('\n')+'\n\n';
 
+  // Tabla de nombres exactos de nodos (para expresiones $() en n8n)
+  const nodeNamesRows=ns.map(n=>{
+    const cp=C[n.type]||C.custom;
+    const lbl=n.label||cp.l;
+    return `| ${cp.ic} ${cp.l} | \`${lbl}\` |`;
+  }).join('\n');
+  if(ns.length){
+    arch+=`### Nombres exactos de nodos en n8n\n\n`;
+    arch+=`Usa EXACTAMENTE estos nombres al crear los nodos. Las expresiones \`$()\` dependen de ellos.\n\n`;
+    arch+=`| Tipo de componente | Nombre del nodo en n8n |\n|-------------------|------------------------|\n${nodeNamesRows}\n\n`;
+    arch+=`**Sintaxis de referencia en expressions / Set nodes:**\n`;
+    arch+=`- Nodo inmediato anterior: \`{{ $json.campo }}\`\n`;
+    arch+=`- Nodo específico por nombre: \`{{ $('Nombre del Nodo').item.json.campo }}\`\n`;
+    arch+=`- Múltiples ítems: \`{{ $('Nombre del Nodo').all()[0].json.campo }}\`\n\n`;
+  }
+
+  // Prompts definidos — incluir textualmente en el JSON generado
+  const promptNodes=ns.filter(n=>n.promptData?.system||n.promptData?.user);
+  if(promptNodes.length){
+    arch+=`### Prompts definidos por nodo — usar EXACTAMENTE estos textos\n\n`;
+    arch+=`Estos son los prompts exactos del usuario. Incorpóralos tal cual en los nodos AI Agent correspondientes. No los reformules ni mejores.\n\n`;
+    promptNodes.forEach(n=>{
+      const cp=C[n.type]||C.custom;
+      const lbl=n.label||cp.l;
+      arch+=`#### ${cp.ic} ${lbl}\n\n`;
+      if(n.promptData.desc) arch+=`*Rol/descripción: ${n.promptData.desc}*\n\n`;
+      if(n.promptData.system) arch+=`**System Prompt:**\n\`\`\`\n${n.promptData.system}\n\`\`\`\n\n`;
+      if(n.promptData.user)   arch+=`**User Prompt (template con expresiones n8n):**\n\`\`\`\n${n.promptData.user}\n\`\`\`\n\n`;
+    });
+  }
+
+  // Configuración RAG — incluir si hay nodos con ragData
+  const ragNodes=ns.filter(n=>n.ragData?.collection||n.ragData?.meta?.length);
+  if(ragNodes.length){
+    arch+=`### Configuración RAG — parámetros exactos por nodo\n\n`;
+    ragNodes.forEach(n=>{
+      const cp=C[n.type]||C.custom;
+      const lbl=n.label||cp.l;
+      const d=n.ragData;
+      arch+=`#### ${cp.ic} ${lbl}\n`;
+      arch+=`- **Colección Qdrant:** \`${d.collection}\`\n`;
+      arch+=`- **Top K:** ${d.topk||5} · **Chunk size:** ${d.chunk||10000}\n`;
+      arch+=`- **Embeddings:** \`${d.embed||'gemini-embedding-001'}\`\n`;
+      if(d.filters?.length){
+        arch+=`- **Filtros de payload:**\n`;
+        d.filters.forEach(f=>{arch+=`  - \`${f.field}\` ${f.op} \`"${f.value}"\`\n`;});
+      }
+      if(d.meta?.length){
+        arch+=`- **Metadata del payload** (usar prefijo \`metadata.\`):\n`;
+        arch+=`  | Campo | Tipo Qdrant | Expresión n8n |\n  |-------|-------------|---------------|\n`;
+        d.meta.forEach(f=>{arch+=`  | \`metadata.${f.n}\` | ${f.t} | ${f.ex||'—'} |\n`;});
+      }
+      arch+='\n';
+    });
+  }
+
+  // Modo-dependiente: intro, regla webhook, sección de preguntas
+  const hasWebhook=ns.some(n=>n.type==='webhook_in');
+  const hasCalendar=ns.some(n=>n.type==='gcal_out'||n.type==='gcal_in');
+  const hasSchedule=ns.some(n=>n.type==='schedule'||n.type==='registro_usu');
+  const introText=mode==='free'
+    ?'Genera el flujo n8n completo como JSON válido e importable. Implementa la arquitectura exactamente como se describe, sin hacer preguntas adicionales.'
+    :'Genera un flujo n8n completo en JSON válido e importable para el siguiente producto.\nSigue todas las reglas del stack técnico y los patrones de documentación indicados.';
+  const webhookRule=hasWebhook?'\n10. **Webhook Entrada**: Response Mode = "Respond to Webhook". Incluir nodo "Respond to Webhook" al cierre del branch de webhook. El header CORS (`Access-Control-Allow-Origin: *`) va en el nodo Respond to Webhook, NO en el Webhook trigger.':'';
+  const calendarRule=hasCalendar?`\n${hasWebhook?12:11}. **Google Calendar — timezone**: el campo \`end\` del evento usar: \`DateTime.fromISO($json.slot, {zone: 'America/Mexico_City'}).plus({minutes: 30}).toISO()\`. Sin \`{zone}\`, Luxon interpreta el ISO local como UTC y el evento queda 6h adelantado. El Code node de slots debe convertir explícitamente UTC↔CDMX (UTC-6 permanente desde 2023).`:'';
+  const scheduleRule=hasSchedule?`\n${hasWebhook?13:hasCalendar?12:11}. **Schedule / Re-engagement**: columna \`recordatorio BOOLEAN DEFAULT FALSE\`. UPDATE a TRUE después de enviar mensaje. El UPSERT del flujo principal lo resetea a FALSE cuando el usuario regresa (DO UPDATE SET recordatorio = FALSE). Comparación \`ultima_interaccion < NOW() - INTERVAL '...'\` funciona en UTC sin conversión porque ambos valores son UTC.`:'';
+
+  const clarifySection=mode==='paid'?`---
+
+## Antes de generar el JSON, responde:
+
+### 1. Contratos JSON por tramo
+Tabla: Nodo origen | Campos que salen | Nodo destino | Campos que entran
+
+### 2. ¿Qué branches conviene separar a subworkflow?
+(4+ nodos de lógica o lógica reutilizable)
+
+### 3. ¿Qué tablas Supabase necesita? (nombre, columnas, propósito)
+
+### 4. ¿Hay nodos de configuración inicial (desconectados, ejecutar una vez)?
+
+---`:`---
+
+Genera el JSON directamente con la arquitectura descrita. Sin pasos adicionales.
+
+---`;
+
   return `# Generador de flujo n8n — PCIA M4
 
-Genera un flujo n8n completo en JSON válido e importable para el siguiente producto.
-Sigue todas las reglas del stack técnico y los patrones de documentación indicados.
+${introText}
 
 ---
 
@@ -1704,23 +2199,12 @@ Timezone:   ${wd.timezone} — UTC-6 permanente sin horario de verano (México)
 6. **Set (Contrato JSON)**: insertar un nodo Set antes de cada branch entry y antes de subworkflow calls
 7. **Qdrant metadata**: todos los campos bajo \`metadata.*\` en el payload
 8. **Splitter en Qdrant**: \`chunkSize: 10000\` para evitar doble-splitting
-9. **Clasificador**: agente (NO LLM Chain), temperature 0.1, maxTokens 20
+9. **Clasificador**: agente (NO LLM Chain), temperature 0.1, maxTokens 20${webhookRule}${calendarRule}${scheduleRule}
+${ns.length?`${hasWebhook?(hasCalendar?(hasSchedule?14:13):(hasSchedule?13:11)):(hasCalendar?(hasSchedule?13:12):(hasSchedule?12:10))}. **Nombres de nodos**: usar exactamente los nombres de la tabla "Nombres exactos de nodos". Las expresiones \`$('Nombre')\` fallan si el nombre difiere por un espacio o mayúscula.`:''}
 
 ---
 
-## Antes de generar el JSON, responde:
-
-### 1. Contratos JSON por tramo
-Tabla: Nodo origen | Campos que salen | Nodo destino | Campos que entran
-
-### 2. ¿Qué branches conviene separar a subworkflow?
-(4+ nodos de lógica o lógica reutilizable)
-
-### 3. ¿Qué tablas Supabase necesita? (nombre, columnas, propósito)
-
-### 4. ¿Hay nodos de configuración inicial (desconectados, ejecutar una vez)?
-
----
+${clarifySection}
 
 ## Patrones clave a aplicar
 
@@ -1747,6 +2231,20 @@ FROM information_schema.columns WHERE table_name = 'nombre_tabla' ORDER BY ordin
 SELECT session_id, ultima_interaccion, status FROM registro_usuarios
 WHERE ultima_interaccion < NOW() - INTERVAL '24 hours' AND recordatorio = FALSE;
 \`\`\`
+${hasCalendar?`
+**Google Calendar — crear evento con zona horaria correcta** (Luxon en n8n):
+\`\`\`
+start: {{ $json.body.slot }}
+end:   {{ DateTime.fromISO($json.body.slot, {zone: 'America/Mexico_City'}).plus({minutes: 30}).toISO() }}
+\`\`\`
+
+**Code node — slots CDMX** (patrón determinista, NO usar LLM para esto):
+- CDMX = UTC-6 permanente (abolió horario de verano en 2023)
+- Slots :00 y :30, entre 9am–5pm, excluyendo sábado/domingo con \`getDay() === 0 || 6\`
+- Convertir slot CDMX → UTC para comparar con eventos del calendario: \`slotUTC = new Date(slotCDMX - UTC_OFFSET * 3600000)\`
+- Devolver \`{ slots: [{slot, etiqueta}], resumen: '...' }\`
+- Los slots en ISO local sin Z (\`2026-07-10T09:00\`) para que el frontend no aplique conversión
+`:''}
 
 ---
 
@@ -1787,7 +2285,10 @@ function initZoomPan(){
       const r=wrap.getBoundingClientRect();
       const cx=e.clientX-r.left;
       const cy=e.clientY-r.top;
-      zoom(e.deltaY<0?1.06:1/1.06,cx,cy);
+      // Zoom suave: escala con la magnitud del delta (max 8% por 100px)
+      const mag=Math.min(Math.abs(e.deltaY),100)/100;
+      const zf=1+mag*0.08;
+      zoom(e.deltaY<0?zf:1/zf,cx,cy);
     } else {
       S.vx-=e.deltaX;
       S.vy-=e.deltaY;
@@ -1815,10 +2316,192 @@ function onPanEnd(e){
 }
 
 // ════════════════════════════════════════════════════════════
+// CONTRACT PRESETS — campos frecuentes del stack M4
+// ════════════════════════════════════════════════════════════
+const CONTRACT_PRESETS={
+  telegram_in:{
+    label:'💬 Telegram entrada',col:'#3B82F6',
+    fields:[
+      {n:'telegram_id', t:'string', ex:'{{ $json.message.chat.id }}'},
+      {n:'mensaje',     t:'string', ex:'{{ $json.message.text }}'},
+      {n:'nombre',      t:'string', ex:'{{ $json.message.from.first_name }}'},
+    ]
+  },
+  normalizado:{
+    label:'⚙ Normalizado',col:'#6B7280',
+    fields:[
+      {n:'telegram_id', t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'mensaje',     t:'string', ex:'{{ $json.mensaje }}'},
+      {n:'canal',       t:'string', ex:'telegram'},
+      {n:'timestamp',   t:'string', ex:'{{ $now }}'},
+    ]
+  },
+  con_intent:{
+    label:'🔍 Con intent',col:'#7C3AED',
+    fields:[
+      {n:'telegram_id', t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'mensaje',     t:'string', ex:'{{ $json.mensaje }}'},
+      {n:'intent',      t:'string', ex:'CONVERSACION'},
+      {n:'canal',       t:'string', ex:'{{ $json.canal }}'},
+    ]
+  },
+  con_memoria:{
+    label:'🗄 Con historial',col:'#10B981',
+    fields:[
+      {n:'telegram_id', t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'mensaje',     t:'string', ex:'{{ $json.mensaje }}'},
+      {n:'historial',   t:'string', ex:'{{ $json.historial }}'},
+      {n:'intent',      t:'string', ex:'{{ $json.intent }}'},
+    ]
+  },
+  con_rag:{
+    label:'📚 Con RAG',col:'#F59E0B',
+    fields:[
+      {n:'telegram_id',  t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'mensaje',      t:'string', ex:'{{ $json.mensaje }}'},
+      {n:'contexto_rag', t:'string', ex:'{{ $json.contexto_rag }}'},
+      {n:'historial',    t:'string', ex:'{{ $json.historial }}'},
+    ]
+  },
+  respuesta_llm:{
+    label:'✦ Respuesta LLM',col:'#EC4899',
+    fields:[
+      {n:'telegram_id', t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'respuesta',   t:'string', ex:'{{ $json.text }}'},
+      {n:'canal',       t:'string', ex:'{{ $json.canal }}'},
+    ]
+  },
+  metadata_rag:{
+    label:'📥 Metadata RAG',col:'#D97706',
+    fields:[
+      {n:'fuente',        t:'string', ex:'google_drive'},
+      {n:'titulo',        t:'string', ex:'{{ $json.name }}'},
+      {n:'categoria',     t:'string', ex:'general'},
+      {n:'fecha_ingesta', t:'string', ex:'{{ $now }}'},
+      {n:'url',           t:'string', ex:'{{ $json.webViewLink }}'},
+    ]
+  },
+  perfil_usuario:{
+    label:'👤 Perfil usuario',col:'#10B981',
+    fields:[
+      {n:'session_id',   t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'nombre',       t:'string', ex:'{{ $json.nombre }}'},
+      {n:'status',       t:'string', ex:'{{ $json.status }}'},
+      {n:'preferencias', t:'object', ex:'{}'},
+    ]
+  },
+  langfuse:{
+    label:'👁 Langfuse',col:'#EAB308',
+    fields:[
+      {n:'trace_name',  t:'string', ex:'agente-respuesta'},
+      {n:'input',       t:'string', ex:'{{ $json.mensaje }}'},
+      {n:'output',      t:'string', ex:'{{ $json.respuesta }}'},
+      {n:'user_id',     t:'string', ex:'{{ $json.telegram_id }}'},
+      {n:'latencia_ms', t:'number', ex:'{{ $json.latencia }}'},
+    ]
+  },
+  solicitud_agenda:{
+    label:'📅 Solicitud Agenda',col:'#1A73E8',
+    fields:[
+      {n:'tipo',       t:'string', ex:'consultar_disponibilidad'},
+      {n:'slot',       t:'string', ex:'2026-07-10T10:00'},
+      {n:'nombre',     t:'string', ex:'{{ $json.body.nombre }}'},
+      {n:'correo',     t:'string', ex:'{{ $json.body.correo }}'},
+      {n:'telefono',   t:'string', ex:'{{ $json.body.telefono }}'},
+      {n:'session_id', t:'string', ex:'{{ $json.body.session_id }}'},
+    ]
+  },
+  slots_cdmx:{
+    label:'🕐 Slots CDMX',col:'#059669',
+    fields:[
+      {n:'slots',    t:'array',  ex:'{{ $json.slots }}'},
+      {n:'resumen',  t:'string', ex:'{{ $json.resumen }}'},
+      {n:'mensaje',  t:'string', ex:'{{ $json.text }}'},
+    ]
+  },
+};
+
+// Campos típicos que cada tipo de nodo produce como salida
+const NODE_OUTPUT_HINTS={
+  telegram:     [{n:'telegram_id',t:'string',ex:'{{ $json.message.chat.id }}'},{n:'mensaje',t:'string',ex:'{{ $json.message.text }}'},{n:'nombre',t:'string',ex:'{{ $json.message.from.first_name }}'}],
+  webhook_in:   [{n:'body',t:'object',ex:'{{ $json.body }}'},{n:'headers',t:'object',ex:'{{ $json.headers }}'},{n:'method',t:'string',ex:'{{ $json.method }}'}],
+  web_ui:       [{n:'mensaje',t:'string',ex:'{{ $json.message }}'},{n:'session_id',t:'string',ex:'{{ $json.sessionId }}'}],
+  schedule:     [{n:'timestamp',t:'string',ex:'{{ $now }}'},{n:'timezone',t:'string',ex:'America/Mexico_City'}],
+  gdrive_in:    [{n:'nombre',t:'string',ex:'{{ $json.name }}'},{n:'contenido',t:'string',ex:'{{ $json.data }}'},{n:'webViewLink',t:'string',ex:'{{ $json.webViewLink }}'},{n:'mimeType',t:'string',ex:'{{ $json.mimeType }}'}],
+  gcal_in:      [{n:'evento',t:'string',ex:'{{ $json.summary }}'},{n:'inicio',t:'string',ex:'{{ $json.start.dateTime }}'},{n:'descripcion',t:'string',ex:'{{ $json.description }}'}],
+  gmail_in:     [{n:'asunto',t:'string',ex:'{{ $json.subject }}'},{n:'remitente',t:'string',ex:'{{ $json.from }}'},{n:'cuerpo',t:'string',ex:'{{ $json.text }}'}],
+  normalizador: [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'mensaje',t:'string',ex:'{{ $json.mensaje }}'},{n:'canal',t:'string',ex:'telegram'},{n:'timestamp',t:'string',ex:'{{ $now }}'}],
+  clasificador: [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'mensaje',t:'string',ex:'{{ $json.mensaje }}'},{n:'intent',t:'string',ex:'CONVERSACION'},{n:'canal',t:'string',ex:'{{ $json.canal }}'}],
+  cerebro:      [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'respuesta',t:'string',ex:'{{ $json.output }}'},{n:'canal',t:'string',ex:'{{ $json.canal }}'}],
+  subworkflow:  [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'respuesta',t:'string',ex:'{{ $json.respuesta }}'},{n:'canal',t:'string',ex:'{{ $json.canal }}'}],
+  orquestador:  [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'tarea',t:'string',ex:'{{ $json.tarea }}'},{n:'agente_destino',t:'string',ex:'{{ $json.agente }}'}],
+  agente_esp:   [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'resultado',t:'string',ex:'{{ $json.resultado }}'},{n:'tipo_agente',t:'string',ex:'{{ $json.tipo }}'}],
+  llm:          [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'respuesta',t:'string',ex:'{{ $json.text }}'},{n:'canal',t:'string',ex:'{{ $json.canal }}'}],
+  llm_chain:    [{n:'respuesta',t:'string',ex:'{{ $json.text }}'},{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'}],
+  memoria:      [{n:'historial',t:'string',ex:'{{ $json.chat_history }}'},{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'}],
+  perfil:       [{n:'nombre',t:'string',ex:'{{ $json.nombre }}'},{n:'preferencias',t:'object',ex:'{{ $json.preferencias }}'},{n:'status',t:'string',ex:'{{ $json.status }}'}],
+  rag_naive:    [{n:'contexto_rag',t:'string',ex:"{{ $json[0].page_content }}"},{n:'score',t:'number',ex:'{{ $json[0].score }}'}],
+  rag_enhanced: [{n:'contexto_rag',t:'string',ex:"{{ $json[0].page_content }}"},{n:'metadata',t:'object',ex:'{{ $json[0].metadata }}'},{n:'score',t:'number',ex:'{{ $json[0].score }}'}],
+  rag_multi:    [{n:'contexto_rag',t:'string',ex:"{{ $json[0].page_content }}"},{n:'imagen_desc',t:'string',ex:'{{ $json.imagen_desc }}'}],
+  if_node:      [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'mensaje',t:'string',ex:'{{ $json.mensaje }}'},{n:'intent',t:'string',ex:'{{ $json.intent }}'}],
+  set_contrato: [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'mensaje',t:'string',ex:'{{ $json.mensaje }}'}],
+  code_node:    [{n:'chunks',t:'array',ex:'{{ $json.chunks }}'},{n:'texto',t:'string',ex:'{{ $json.texto }}'},{n:'metadata',t:'object',ex:'{}'},{n:'slots',t:'array',ex:'{{ $json.slots }}'},{n:'resumen',t:'string',ex:'{{ $json.resumen }}'}],
+  router_out:   [{n:'telegram_id',t:'string',ex:'{{ $json.telegram_id }}'},{n:'respuesta',t:'string',ex:'{{ $json.respuesta }}'},{n:'canal',t:'string',ex:'{{ $json.canal }}'}],
+  langfuse:     [{n:'trace_id',t:'string',ex:'{{ $json.id }}'},{n:'status',t:'string',ex:'success'}],
+  supabase:     [{n:'rows',t:'array',ex:'{{ $json }}'},{n:'count',t:'number',ex:'{{ $json.length }}'}],
+  qdrant:       [{n:'contexto_rag',t:'string',ex:"{{ $json[0].payload.texto }}"},{n:'score',t:'number',ex:'{{ $json[0].score }}'},{n:'metadata',t:'object',ex:'{{ $json[0].payload }}'}],
+  registro_usu: [{n:'usuario_existe',t:'boolean',ex:'{{ $json.usuario_existe }}'},{n:'session_id',t:'string',ex:'{{ $json.session_id }}'}],
+};
+
+function suggestNodeOutput(){
+  const btn=document.getElementById('suggest-output-btn');
+  const srcType=btn.dataset.srcType;
+  const srcId=btn.dataset.srcId;
+  const srcLabel=S.nodes[srcId]?.label||compOf(srcType).l;
+  const hints=NODE_OUTPUT_HINTS[srcType]||[];
+  const existing=new Set(_contractFields.map(f=>f.n));
+  hints.forEach(f=>{
+    if(!existing.has(f.n)){
+      // Reemplazar $json. con $('Nombre del nodo').item.json. para referencia explícita
+      const ex=f.ex?f.ex.replace(/\$json\./g,`$('${srcLabel}').item.json.`):f.ex;
+      _contractFields.push({...f,ex});
+    }
+  });
+  renderContractFields(); renderContractPreview();
+}
+
+function applyPreset(key){
+  const p=CONTRACT_PRESETS[key];
+  if(!p) return;
+  const existing=new Set(_contractFields.map(f=>f.n));
+  p.fields.forEach(f=>{if(!existing.has(f.n)) _contractFields.push({...f});});
+  renderContractFields(); renderContractPreview();
+}
+
+// ════════════════════════════════════════════════════════════
 // CONTRACT EDITOR
 // ════════════════════════════════════════════════════════════
 let _contractId=null;
 let _contractFields=[];
+let _inheritSuggestions=[];
+
+function getIncomingFields(nodeId){
+  // Recopila campos de conexiones entrantes al nodo dado (para sugerir herencia)
+  const fields=[]; const seen=new Set();
+  Object.values(S.conns).forEach(c=>{
+    if(c.to===nodeId&&c.fields&&c.fields.length){
+      c.fields.forEach(f=>{if(f.n&&!seen.has(f.n)){seen.add(f.n);fields.push({...f});}});
+    }
+  });
+  return fields;
+}
+
+function inheritFields(){
+  if(!_inheritSuggestions.length) return;
+  const existing=new Set(_contractFields.map(f=>f.n));
+  _inheritSuggestions.forEach(f=>{if(!existing.has(f.n)) _contractFields.push({...f});});
+  renderContractFields(); renderContractPreview();
+}
 
 function openContractEditor(connId){
   _contractId=connId;
@@ -1828,6 +2511,20 @@ function openContractEditor(connId){
   const fl=compOf(fn?.type).l, tl=compOf(tn?.type).l;
   document.getElementById('contract-subtitle').textContent=`${fl} → ${tl}`;
   _contractFields=[...(cn.fields||[])];
+  _inheritSuggestions=getIncomingFields(cn.from);
+  document.getElementById('inherit-btn').style.display=_inheritSuggestions.length?'':'none';
+  const srcType=S.nodes[cn.from]?.type||'';
+  const outBtn=document.getElementById('suggest-output-btn');
+  outBtn.style.display=(NODE_OUTPUT_HINTS[srcType]?.length)?'':'none';
+  outBtn.dataset.srcType=srcType;
+  outBtn.dataset.srcId=cn.from;
+  const srcLabel=S.nodes[cn.from]?.label||compOf(srcType).l;
+  outBtn.title=`Salida típica de: ${srcLabel}`;
+  outBtn.textContent=`↓ Salida: ${srcLabel.length>18?srcLabel.slice(0,17)+'…':srcLabel}`;
+  // Render preset chips
+  document.getElementById('preset-chips').innerHTML=Object.entries(CONTRACT_PRESETS).map(([k,p])=>
+    `<button class="btn" style="font-size:9px;padding:2px 9px;border-color:${p.col}40;color:${p.col}" onclick="applyPreset('${k}')">${p.label}</button>`
+  ).join('');
   renderContractFields();
   renderContractPreview();
   show('ov-contract');
@@ -1902,6 +2599,297 @@ function showMemPanel(nodeId){
   panel.style.display='block';
 }
 function hideMemPanel(){document.getElementById('mem-panel').style.display='none';}
+
+// ════════════════════════════════════════════════════════════
+// PROMPT EDITOR — system prompt + user prompt por nodo LLM/agente
+// ════════════════════════════════════════════════════════════
+function getIncomingFieldsWithSource(nodeId){
+  const fields=[]; const seen=new Set();
+  Object.values(S.conns).forEach(c=>{
+    if(c.to!==nodeId||!c.fields?.length) return;
+    const src=S.nodes[c.from];
+    const srcLbl=src?.label||compOf(src?.type).l;
+    c.fields.forEach(f=>{
+      if(f.n&&!seen.has(f.n)){seen.add(f.n);fields.push({...f,_src:srcLbl});}
+    });
+  });
+  return fields;
+}
+
+const PROMPT_TPL={
+  cerebro:(desc,fields)=>({
+    system:`Eres un asistente de IA${desc?` — ${desc}`:''}.
+Responde siempre en español, de forma amigable y concisa.
+Zona horaria del usuario: America/Mexico_City (UTC-6, sin horario de verano).`,
+    user:fields.length
+      ?fields.map(f=>`${f.n}:\n{{ $('${f._src}').item.json.${f.n} }}`).join('\n\n')
+      :`Mensaje:\n{{ $json.mensaje }}`
+  }),
+  clasificador:(desc,fields)=>({
+    system:`Clasifica la intención del usuario en UNA de estas categorías: ${(S.wd?.intents||['CONVERSACION','FAQ','ACCION']).join(', ')}.
+Responde ÚNICAMENTE con la etiqueta exacta, sin explicación ni puntuación adicional.
+Temperatura recomendada: 0.1 — Tokens máximos: 20`,
+    user:`Mensaje: {{ $json.mensaje }}`
+  }),
+  agente_esp:(desc,fields)=>({
+    system:`Eres un agente especializado en ${desc||'[describe la especialidad]'}.
+Completa la tarea de forma precisa y estructurada.
+Responde en español.`,
+    user:fields.length
+      ?fields.map(f=>`${f.n}:\n{{ $('${f._src}').item.json.${f.n} }}`).join('\n\n')
+      :`Tarea: {{ $json.tarea }}\nMensaje: {{ $json.mensaje }}`
+  }),
+  orquestador:(desc,fields)=>({
+    system:`Eres un orquestador de agentes IA.${desc?`\n${desc}`:''}
+Analiza el mensaje y determina el agente especializado más adecuado.
+Responde ÚNICAMENTE con JSON: { "agente": "nombre", "tarea": "descripción breve" }`,
+    user:fields.length
+      ?fields.map(f=>`${f.n}:\n{{ $('${f._src}').item.json.${f.n} }}`).join('\n\n')
+      :`Mensaje: {{ $json.mensaje }}\nIntent: {{ $json.intent }}`
+  }),
+  llm:(desc,fields)=>({
+    system:`${desc||'Eres un asistente de IA útil y preciso.'}\nResponde en español.`,
+    user:fields.length
+      ?fields.map(f=>`${f.n}:\n{{ $('${f._src}').item.json.${f.n} }}`).join('\n\n')
+      :`{{ $json.mensaje }}`
+  }),
+  llm_chain:(desc,fields)=>({
+    system:`${desc||'Procesa el siguiente input y genera una respuesta estructurada.'}`,
+    user:fields.length
+      ?fields.map(f=>`{{ $('${f._src}').item.json.${f.n} }}`).join('\n')
+      :`{{ $json.mensaje }}`
+  }),
+};
+
+const PE_TYPES=['cerebro','llm','llm_chain','clasificador','agente_esp','orquestador'];
+let _promptNodeId=null;
+
+function openPromptEditor(id){
+  _promptNodeId=id;
+  const nd=S.nodes[id]; if(!nd) return;
+  const cp=compOf(nd.type);
+  document.getElementById('pe-lbl').textContent=cp.ic+' '+cp.l;
+  document.getElementById('pe-label').value=nd.label||cp.l;
+  document.getElementById('pe-desc').value=nd.promptData?.desc||'';
+  document.getElementById('pe-tone').value=nd.promptData?.tone||'';
+  document.getElementById('pe-rules').value=nd.promptData?.rules||'';
+  document.getElementById('pe-fewshot').value=nd.promptData?.fewshot||'';
+  document.getElementById('pe-outfmt').value=nd.promptData?.outfmt||'';
+  document.getElementById('pe-system').value=nd.promptData?.system||'';
+  document.getElementById('pe-user').value=nd.promptData?.user||'';
+  // Chips de campos entrantes con referencia al nodo origen
+  const fields=getIncomingFieldsWithSource(id);
+  document.getElementById('pe-field-chips').innerHTML=fields.map(f=>{
+    const expr=`{{ $('${f._src}').item.json.${f.n} }}`;
+    return `<button class="btn" style="font-size:9px;padding:2px 8px;border-color:#8B5CF640;color:#8B5CF6"
+      data-expr="${expr.replace(/"/g,'&quot;')}"
+      onclick="insertAtCursor('pe-user',this.dataset.expr)"
+      title="${f._src} → ${f.n} (${f.t||'string'})">${f.n}</button>`;
+  }).join('');
+  renderPEPreview();
+  show('ov-prompt');
+}
+
+function togglePEBlocks(){
+  const body=document.getElementById('pe-blk-body');
+  const tog=document.getElementById('pe-blk-tog');
+  const hidden=body.style.display==='none';
+  body.style.display=hidden?'flex':'none';
+  tog.textContent=hidden?'▴ ocultar':'▾ expandir';
+}
+
+function compilePEBlocks(){
+  const desc=document.getElementById('pe-desc').value.trim();
+  const tone=document.getElementById('pe-tone').value.trim();
+  const rules=document.getElementById('pe-rules').value.trim();
+  const fewshot=document.getElementById('pe-fewshot').value.trim();
+  const outfmt=document.getElementById('pe-outfmt').value.trim();
+  const parts=[];
+  // Rol / descripción
+  parts.push(desc?`Eres ${desc}.`:'Eres un asistente de IA útil y preciso.');
+  parts.push('Responde siempre en español de México.');
+  parts.push('Zona horaria: America/Mexico_City (UTC-6, sin horario de verano).');
+  // Tono
+  if(tone) parts.push(`\nTono: ${tone}.`);
+  // Reglas del negocio
+  if(rules) parts.push(`\n---\n\nReglas:\n${rules}`);
+  // Few-shot
+  if(fewshot) parts.push(`\n---\n\nEjemplos:\n\n${fewshot}`);
+  // Estructura de salida
+  if(outfmt) parts.push(`\n---\n\n${outfmt}`);
+  document.getElementById('pe-system').value=parts.join('\n');
+  renderPEPreview();
+  setStatus('Bloques compilados en System Prompt');
+}
+
+function autoGenPrompts(){
+  if(!_promptNodeId) return;
+  const nd=S.nodes[_promptNodeId]; if(!nd) return;
+  const tpl=PROMPT_TPL[nd.type]; if(!tpl){setStatus('No hay plantilla para este tipo de nodo');return;}
+  const desc=document.getElementById('pe-desc').value.trim();
+  const fields=getIncomingFieldsWithSource(_promptNodeId);
+  const{system,user}=tpl(desc,fields);
+  document.getElementById('pe-system').value=system;
+  document.getElementById('pe-user').value=user;
+  renderPEPreview();
+}
+
+function insertAtCursor(id,text){
+  const ta=document.getElementById(id);
+  const s=ta.selectionStart,e=ta.selectionEnd;
+  ta.value=ta.value.slice(0,s)+text+ta.value.slice(e);
+  ta.selectionStart=ta.selectionEnd=s+text.length;
+  ta.focus(); renderPEPreview();
+}
+
+function renderPEPreview(){
+  const sys=document.getElementById('pe-system').value;
+  const usr=document.getElementById('pe-user').value;
+  const tone=document.getElementById('pe-tone').value.trim();
+  const rules=document.getElementById('pe-rules').value.trim();
+  const fewshot=document.getElementById('pe-fewshot').value.trim();
+  const outfmt=document.getElementById('pe-outfmt').value.trim();
+  const hasBloques=tone||rules||fewshot||outfmt;
+  const blk=hasBloques&&!sys?'[Bloques sin compilar — presiona ↓ Compilar]\n\n':'';
+  document.getElementById('pe-preview').textContent=
+    blk+
+    (sys?`━━ SYSTEM ━━\n${sys}\n\n`:'')+
+    (usr?`━━ USER ━━\n${usr}`:'— user prompt vacío —');
+}
+
+function savePromptData(){
+  if(!_promptNodeId||!S.nodes[_promptNodeId]) return;
+  const lbl=document.getElementById('pe-label').value.trim();
+  if(lbl) S.nodes[_promptNodeId].label=lbl;
+  S.nodes[_promptNodeId].promptData={
+    desc:   document.getElementById('pe-desc').value.trim(),
+    tone:   document.getElementById('pe-tone').value.trim(),
+    rules:  document.getElementById('pe-rules').value.trim(),
+    fewshot:document.getElementById('pe-fewshot').value.trim(),
+    outfmt: document.getElementById('pe-outfmt').value.trim(),
+    system: document.getElementById('pe-system').value,
+    user:   document.getElementById('pe-user').value,
+  };
+  render(); hide('ov-prompt');
+}
+
+// ════════════════════════════════════════════════════════════
+// RAG METADATA EDITOR
+// ════════════════════════════════════════════════════════════
+const RAG_META_PRESETS=[
+  {n:'fuente',      t:'keyword', ex:'google_drive'},
+  {n:'titulo',      t:'text',    ex:'{{ $json.name }}'},
+  {n:'categoria',   t:'keyword', ex:'general'},
+  {n:'idioma',      t:'keyword', ex:'es'},
+  {n:'fecha_ingesta',t:'datetime',ex:'{{ $now }}'},
+  {n:'url',         t:'text',    ex:'{{ $json.webViewLink }}'},
+  {n:'autor',       t:'keyword', ex:'{{ $json.owners[0].displayName }}'},
+  {n:'version',     t:'keyword', ex:'1.0'},
+];
+
+let _ragNodeId=null;
+let _ragFilters=[];   // [{field,op,value}]
+let _ragMeta=[];      // [{n,t,ex}]
+
+function openRagEditor(id){
+  _ragNodeId=id;
+  const nd=S.nodes[id]; if(!nd) return;
+  const cp=compOf(nd.type);
+  document.getElementById('rag-lbl').textContent=cp.ic+' '+cp.l;
+  const d=nd.ragData||{};
+  document.getElementById('rag-collection').value=d.collection||'';
+  document.getElementById('rag-topk').value=d.topk||5;
+  document.getElementById('rag-embed').value=d.embed||'gemini-embedding-001';
+  document.getElementById('rag-chunk').value=d.chunk||10000;
+  _ragFilters=JSON.parse(JSON.stringify(d.filters||[]));
+  _ragMeta=JSON.parse(JSON.stringify(d.meta||[]));
+  // Solo RAG Enhanced y RAG Multi tienen filtros
+  const isEnhanced=nd.type==='rag_enhanced'||nd.type==='rag_multi';
+  document.getElementById('rag-filter-wrap').style.display=isEnhanced?'':'none';
+  renderRagFilters(); renderRagMeta(); renderRagPreview();
+  show('ov-rag');
+}
+
+function renderRagFilters(){
+  document.getElementById('rag-filters').innerHTML=_ragFilters.length
+    ?_ragFilters.map((f,i)=>`
+      <div style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:6px;align-items:center;margin-bottom:6px">
+        <input class="swin" value="${escA(f.field)}" placeholder="metadata.categoria"
+          oninput="_ragFilters[${i}].field=this.value;renderRagPreview()" style="font-size:10.5px">
+        <select class="swin" style="font-size:10.5px;padding:4px 6px"
+          onchange="_ragFilters[${i}].op=this.value;renderRagPreview()">
+          ${['=','!=','>','<','in'].map(o=>`<option value="${o}"${f.op===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+        <input class="swin" value="${escA(f.value)}" placeholder="valor"
+          oninput="_ragFilters[${i}].value=this.value;renderRagPreview()" style="font-size:10.5px">
+        <button class="btn del" style="padding:2px 8px;font-size:11px" onclick="_ragFilters.splice(${i},1);renderRagFilters();renderRagPreview()">✕</button>
+      </div>`).join('')
+    :`<div style="font-size:10px;color:var(--muted);padding:6px 0">Sin filtros — RAG buscará en toda la colección.</div>`;
+}
+
+function addRagFilter(){
+  _ragFilters.push({field:'metadata.',op:'=',value:''});
+  renderRagFilters(); renderRagPreview();
+}
+
+function renderRagMeta(){
+  document.getElementById('rag-meta-fields').innerHTML=_ragMeta.length
+    ?_ragMeta.map((f,i)=>`
+      <div style="display:grid;grid-template-columns:1fr 90px 1fr auto;gap:6px;align-items:center;margin-bottom:6px">
+        <input class="swin" value="${escA(f.n)}" placeholder="nombre del campo"
+          oninput="_ragMeta[${i}].n=this.value;renderRagPreview()" style="font-size:10.5px">
+        <select class="swin" style="font-size:10.5px;padding:4px 6px"
+          onchange="_ragMeta[${i}].t=this.value;renderRagPreview()">
+          ${['keyword','text','integer','float','datetime','bool'].map(t=>`<option value="${t}"${f.t===t?' selected':''}>${t}</option>`).join('')}
+        </select>
+        <input class="swin" value="${escA(f.ex||'')}" placeholder="{{ expresión n8n }}"
+          oninput="_ragMeta[${i}].ex=this.value;renderRagPreview()" style="font-size:10.5px">
+        <button class="btn del" style="padding:2px 8px;font-size:11px" onclick="_ragMeta.splice(${i},1);renderRagMeta();renderRagPreview()">✕</button>
+      </div>`).join('')
+    :`<div style="font-size:10px;color:var(--muted);padding:6px 0">Sin campos — agrega campos o usa un preset.</div>`;
+}
+
+function addRagMeta(){
+  _ragMeta.push({n:'',t:'keyword',ex:''});
+  renderRagMeta(); renderRagPreview();
+}
+
+function addRagMetaPreset(){
+  const existing=new Set(_ragMeta.map(f=>f.n));
+  RAG_META_PRESETS.forEach(f=>{if(!existing.has(f.n))_ragMeta.push({...f});});
+  renderRagMeta(); renderRagPreview();
+}
+
+function renderRagPreview(){
+  const col=document.getElementById('rag-collection').value||'[colección]';
+  const topk=document.getElementById('rag-topk').value||5;
+  const embed=document.getElementById('rag-embed').value||'gemini-embedding-001';
+  const chunk=document.getElementById('rag-chunk').value||10000;
+  let out=`Colección: ${col}   topK: ${topk}   chunk: ${chunk}\nEmbeddings: ${embed}\n`;
+  if(_ragFilters.length){
+    out+=`\nFiltros payload:\n`;
+    _ragFilters.forEach(f=>{out+=`  metadata.${f.field.replace(/^metadata\./,'')} ${f.op} "${f.value}"\n`;});
+  }
+  if(_ragMeta.length){
+    out+=`\nPayload metadata:\n`;
+    _ragMeta.forEach(f=>{out+=`  metadata.${f.n} (${f.t}): ${f.ex||'—'}\n`;});
+  }
+  document.getElementById('rag-preview').textContent=out;
+}
+
+function saveRagData(){
+  if(!_ragNodeId||!S.nodes[_ragNodeId]) return;
+  S.nodes[_ragNodeId].ragData={
+    collection: document.getElementById('rag-collection').value.trim(),
+    topk:       parseInt(document.getElementById('rag-topk').value)||5,
+    embed:      document.getElementById('rag-embed').value.trim(),
+    chunk:      parseInt(document.getElementById('rag-chunk').value)||10000,
+    filters:    JSON.parse(JSON.stringify(_ragFilters)),
+    meta:       JSON.parse(JSON.stringify(_ragMeta)),
+  };
+  render(); hide('ov-rag');
+  setStatus('Configuración RAG guardada');
+}
 
 // ════════════════════════════════════════════════════════════
 // FEATURE A — GUARDAR / CARGAR DIAGRAMA

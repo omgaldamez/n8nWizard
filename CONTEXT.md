@@ -3,9 +3,9 @@
 
 ---
 
-## 1. QUÉ ES ESTE PROYECTO 
+## 1. QUÉ ES ESTE PROYECTO
 
-`arquitectura-agentes7.html` es una herramienta visual single-file (HTML + CSS + JS puro, sin dependencias externas) para que los participantes del programa **Profesionalización Creativa con IA (PCIA)** de CENTRO Educación Continua (CDMX) diseñen la arquitectura de su agente de IA antes de construirla en n8n.
+`index.html` es una herramienta visual single-file (HTML + CSS + JS puro, sin dependencias externas) para que los participantes del programa **Profesionalización Creativa con IA (PCIA)** de CENTRO Educación Continua (CDMX) diseñen la arquitectura de su agente de IA antes de construirla en n8n.
 
 **Problema que resuelve:** Los participantes entran a la sesión 10 (cierre del Módulo 4) necesitando externalizar y comunicar la arquitectura de su producto. La herramienta les guía mediante un wizard y les permite armar un diagrama visual que exportan como SVG, como texto Markdown para Miro, como PlantUML para el diagrama de secuencia UML, y como prompt listo para pegar en Claude y generar el JSON del flujo n8n.
 
@@ -20,12 +20,18 @@
 ## 2. ARCHIVO PRINCIPAL
 
 ```
-arquitectura-agentes7.html    ← todo el proyecto: HTML + CSS + JS, ~2092 líneas
+index.html    ← todo el proyecto: HTML + CSS + JS, ~2400+ líneas
 ```
 
 Sin `package.json`, sin `node_modules`, sin build step. Se abre directamente en Chrome.
 
 **Restricción dura:** el archivo debe permanecer como single-file. No extraer CSS ni JS a archivos separados.
+
+**JSONs de referencia en el proyecto** (flujos n8n reales del programa):
+- `S7 - POST Agenda.json` — flujo de agenda web: Webhook POST → Switch → consultar calendar / agendar cita / guardar mensaje
+- `S7 - Webhook GET.json` — lectura de tabla Supabase via webhook GET
+- `M4S5_RegistroHoras-Intencion.json` — registro de usuarios + clasificador de intención
+- `M4S5-Programado.json` — re-engagement con Schedule Trigger + Loop
 
 ---
 
@@ -35,12 +41,12 @@ Sin `package.json`, sin `node_modules`, sin build step. Se abre directamente en 
 
 ```js
 const S = {
-  nodes: {},      // id → {id, type, x, y, label?, swData?}
+  nodes: {},      // id → {id, type, x, y, label?, swData?, promptData?}
   conns: {},      // id → {id, from, to, fields: [{n, t, ex}]}
   sel: null,      // 'n:id' | 'c:id' | null
   mode: 'sel',    // 'sel' | 'conn'
   cFrom: null,    // nodeId cuando conectMode está activo
-  drag: null,     // {id, ox, oy, mx, my, moved}  ← moved: boolean para distinguir drag de clic
+  drag: null,     // {id, ox, oy, mx, my, moved}
   nc: 1, cc: 1,   // contadores de IDs de nodos y conexiones
   vx: 0, vy: 0, vs: 1,   // viewport: pan X/Y y zoom scale
   panState: null, // {sx, sy, ox, oy} para pan con botón medio
@@ -52,6 +58,11 @@ const S = {
     registro: false, schedule: false, timezone: 'America/Mexico_City'
   },
   swNode: null, swIn: [], swOut: [],
+  // Diagrama de secuencia interactivo:
+  seqOrder: null,       // array ordenado de actorIds (null = orden topológico)
+  seqHidden: new Set(), // actorIds ocultos
+  showSeqFields: true,  // mostrar campos de contrato en mensajes
+  seqSel: null,         // actorId seleccionado en el panel de info
 };
 ```
 
@@ -65,6 +76,7 @@ let _mmView = null;            // {wr, s, ox, oy} — proyección del mini-mapa 
 let _lodBucket = 2;            // nivel de detalle actual: 0 | 1 | 2
 let _contractId = null;        // connId abierto en el editor de contrato
 let _contractFields = [];      // copia editable de los campos del contrato activo
+let _seqDrag = null;           // estado de drag en la tab de secuencia
 ```
 
 ### Funciones clave
@@ -73,35 +85,44 @@ let _contractFields = [];      // copia editable de los campos del contrato acti
 |---------|----------|
 | `render()` | Redibuja todo: conns → nodes → status → minimap → seq si tab activa |
 | `applyView()` | Aplica transform al `<g id="canvas-root">`, actualiza zoom-lbl, background-position del grid, dispara LOD check y `renderMinimap()` |
-| `svgPt(e)` | Convierte coordenadas de pantalla a coordenadas mundo (sin scroll, usa solo clientX/Y) |
-| `zoom(delta, cx, cy)` | Zoom centrado en punto de pantalla. Clamp 0.15–4x |
+| `svgPt(e)` | Convierte coordenadas de pantalla a coordenadas mundo |
+| `zoom(delta, cx, cy)` | Zoom centrado en punto de pantalla. Clamp 0.15–4x. Sensibilidad suave: `mag = min(abs(deltaY),100)/100`, factor = 1 + mag*0.08 |
 | `connGeom(fn, tn, off)` | Calcula la bezier cúbica de una conexión. Devuelve `{d, p0, p1, p2, p3}` |
 | `bezMid(p0, p1, p2, p3)` | Punto real al 50% de la bezier: `(P0 + 3P1 + 3P2 + P3) / 8` |
-| `contentBounds(pad)` | Bounding box de todos los nodos con padding. Devuelve `{x,y,w,h}` o `null` si no hay nodos |
+| `contentBounds(pad)` | Bounding box de todos los nodos con padding |
 | `lodBucket()` | Nivel de detalle según `NH * S.vs`. 0=solo rect, 1=ícono, 2=texto completo |
 | `escA(s)` | Escapa `&`, `"`, `<` para atributos HTML en plantillas de string |
 | `buildFromWiz()` | Construye el canvas desde los datos del wizard (6 pasos) |
-| `applyPat(idx)` | Carga una de las 7 plantillas predefinidas en el canvas |
+| `applyPat(idx)` | Carga una de las plantillas predefinidas en el canvas |
 | `addConn(fromId, toId)` | Agrega conexión (previene auto-loop y duplicados) |
 | `genMD()` | Genera el Markdown de arquitectura para exportar |
 | `genPlantUML()` | Genera el bloque @startuml…@enduml del diagrama de secuencia |
-| `genN8NPrompt()` | Genera el prompt completo para Claude. Incluye tabla de contratos JSON si las conexiones tienen campos definidos |
-| `renderSeq()` | Dibuja el diagrama de secuencia UML en la tab Secuencia |
+| `genN8NPrompt(mode)` | Genera el prompt completo para Claude. `mode`: `'paid'` (preguntas aclaratorias) o `'free'` (genera directo). Incluye tabla de contratos, nombres de nodos, reglas de timezone, prompts definidos |
+| `renderSeq()` | Dibuja el diagrama de secuencia interactivo. Usa `S.seqOrder`, `S.seqHidden`, `S.showSeqFields` |
 | `topoSort()` | Sort topológico (Kahn) para el orden de actores en el diagrama de secuencia |
 | `openContractEditor(connId)` | Abre el editor de contrato JSON de una conexión |
+| `inheritFields()` | Hereda los campos de la conexión upstream del nodo origen al contrato activo |
+| `suggestNodeOutput()` | Agrega campos típicos del nodo origen al contrato, transformando `$json.campo` → `$('Label').item.json.campo` |
+| `openPromptEditor(nodeId)` | Abre el modal ov-prompt para nodos de tipo LLM/agente |
+| `autoGenPrompt()` | Auto-genera system+user prompt desde descripción usando PROMPT_TPL |
 | `showMemPanel(nodeId)` | Muestra el panel de SQL de nodos de memoria |
 | `saveDiagram()` | Descarga el estado completo como JSON `{v:1, nodes, conns, wd, nc, cc}` |
-| `loadDiagram(file)` | Lee un JSON guardado, valida campo `"v"`, migra tipos desconocidos a `custom`, restaura estado |
-| `onNodeDbl(e, id)` | Doble clic: subworkflows abren el modal de contrato; el resto abre `prompt()` para renombrar |
-| `tipEnter(id, el)` | Registra el timer de tooltip (400ms). Usa `getBoundingClientRect` del elemento SVG en pantalla |
+| `loadDiagram(file)` | Lee un JSON guardado, valida, migra tipos desconocidos a `custom`, restaura estado |
+| `onNodeDbl(e, id)` | Doble clic: nodos PE_TYPES abren editor de prompt; subworkflows abren contrato; resto abre `prompt()` para renombrar |
+| `renderSeqInfo(id)` | Panel de info del actor seleccionado: label, tipo, color, prompts, contratos, botones de acción |
+| `seqHideActor(id)` | Oculta actor del diagrama de secuencia (añade a `S.seqHidden`) |
+| `seqShowAll()` | Muestra todos los actores (`S.seqHidden.clear()`) |
+| `seqResetOrder()` | Restaura el orden topológico (`S.seqOrder = null`) |
+| `toggleSeqFields()` | Alterna visibilidad de campos de contrato en mensajes del diagrama |
+| `tipEnter(id, el)` | Registra el timer de tooltip (400ms) |
 | `hideTip()` | Cancela el timer y oculta `#node-tip` |
 | `toggleMinimap()` | Alterna colapso del mini-mapa |
-| `renderMinimap()` | Redibuja el mini-mapa y el rectángulo de viewport. No opera si `_mmCollapsed` |
+| `renderMinimap()` | Redibuja el mini-mapa y el rectángulo de viewport |
 
 ### Capas SVG
 
 ```
-<svg id="cv" width="100%" height="100%">   ← ocupa el 100% de #cwrap (overflow:hidden)
+<svg id="cv" width="100%" height="100%">
   <defs>arrowhead marker</defs>
   <g id="canvas-root">  ← recibe el transform de zoom/pan
     <g id="cl"></g>     ← conexiones (bezier + badges de contrato)
@@ -109,8 +130,6 @@ let _contractFields = [];      // copia editable de los campos del contrato acti
   </g>
 </svg>
 ```
-
-**Importante:** El SVG ya no tiene dimensiones fijas (3000×2000). `#cwrap` tiene `overflow:hidden`. La navegación es solo por zoom/pan — no hay scroll.
 
 ---
 
@@ -130,10 +149,9 @@ Cada componente tiene: `l` (label), `cat` (categoría), `col` (color hex), `ic` 
 | `custom` | custom |
 
 **Colores por categoría:**
-- entrada: `#3B82F6` (azul)
-- proceso: `#7C3AED` (violeta)
-- fuente/memoria: `#10B981` (verde)
-- fuente/RAG: `#F59E0B` (ámbar)
+- entrada: `#3B82F6` (azul) / Google: `#34A853` Drive, `#1A73E8` Calendar, `#EA4335` Gmail
+- proceso: `#7C3AED` (violeta), `#EA580C` if_node, `#6B7280` set_contrato/code_node
+- fuente/memoria: `#10B981` (verde) / RAG: `#F59E0B` ámbar
 - modelo LLM: `#EC4899` (rosa)
 - salida: `#6366F1` (índigo)
 - observabilidad: `#EAB308` (amarillo)
@@ -141,7 +159,7 @@ Cada componente tiene: `l` (label), `cat` (categoría), `col` (color hex), `ic` 
 
 ---
 
-## 5. PLANTILLAS PREDEFINIDAS (7)
+## 5. PLANTILLAS PREDEFINIDAS (10)
 
 1. **Agente simple** — Telegram → Normalizador → Cerebro → LLM → Resp. Telegram
 2. **Con memoria** — Agrega Memoria (Supabase) bidireccional al Cerebro
@@ -150,6 +168,9 @@ Cada componente tiene: `l` (label), `cat` (categoría), `col` (color hex), `ic` 
 5. **RAG multimodal** — RAG con análisis de imágenes (Gemini Vision)
 6. **Multi-canal + sub-workflow** — Telegram, Webhook, Web → Normalizador → Subworkflow → RAG/LLM → Router → Salidas
 7. **Multi-agente con router** — Orquestador → 3 Agentes Especializados → LLM → Router
+8. **Ingesta RAG** — Google Drive / Webhook → Code Node → Set → Qdrant → Resp. HTTP
+9. **Agenda Web** — Webhook POST → if_node (Switch por tipo) → 3 ramas: (gcal_in → code_node CDMX → llm_chain → resp_http) / (gcal_out → gmail_out → resp_http) / (supabase INSERT → set_contrato → resp_http)
+10. **Re-engagement** — schedule → registro_usu (SELECT inactivos) → code_node (mensaje por status) → resp_tel → supabase (UPDATE recordatorio=TRUE)
 
 Cada plantilla define nodos con posiciones (x, y) absolutas centradas en `CX = 550`, y conexiones como pares de índices `[fromIdx, toIdx]`.
 
@@ -157,13 +178,13 @@ Cada plantilla define nodos con posiciones (x, y) absolutas centradas en `CX = 5
 
 ## 6. WIZARD — 6 PASOS + SELECTOR DE PLANTILLAS
 
-- **Paso 0** — Selector de plantillas (7 tarjetas, clic carga directamente)
+- **Paso 0** — Selector de plantillas (10 tarjetas, clic carga directamente)
 - **Paso 1** — Canal(es) de entrada (multi-select: Telegram, Webhook, Web, Schedule, Trigger)
 - **Paso 2** — Clasificador de intención (toggle + etiquetas editables + tabla registro_usuarios)
 - **Paso 3** — Fuentes de memoria (Memoria conversacional, Perfil de usuario)
 - **Paso 4** — RAG (none / naive / enhanced / multimodal)
 - **Paso 5** — Opciones adicionales (Langfuse, sub-workflow, re-engagement, zona horaria)
-- **Paso 6** — LLM principal (10 opciones incluyendo Gemini, GPT-4o, Claude, Llama, DeepSeek)
+- **Paso 6** — LLM principal (17 opciones incluyendo Gemini, GPT-4o, Claude, Llama, DeepSeek)
 
 `buildFromWiz()` construye el canvas en capas. Si `wd.clasifica` está activo, inserta un nodo `clasificador` entre el normalizador y el cerebro. Si `wd.registro` está activo, añade `registro_usu` en la misma capa.
 
@@ -174,7 +195,7 @@ Cada plantilla define nodos con posiciones (x, y) absolutas centradas en `CX = 5
 | Tab | Descripción |
 |-----|-------------|
 | ⬡ Arquitectura | Canvas principal con nodos y conexiones |
-| ↔ Secuencia | Diagrama de secuencia UML auto-generado desde el canvas |
+| ↔ Secuencia | Diagrama de secuencia UML interactivo |
 
 `setTab(t)` alterna entre `#cwrap` (arquitectura) y `#seq-wrap` (secuencia).
 
@@ -184,40 +205,127 @@ Cada plantilla define nodos con posiciones (x, y) absolutas centradas en `CX = 5
 
 ### Canvas y navegación
 
-- **Drag & drop** de nodos (mousedown → document mousemove → mouseup). `drag.moved` previene que el mouseup emita un clic fantasma.
-- **Zoom:** `Ctrl/Cmd + rueda` (o pinch de trackpad, que llega como `wheel` con `ctrlKey`). Centrado en cursor. Clamp 0.15–4x.
-- **Pan:** rueda sin modificador desplaza el canvas. Botón medio del mouse también hace pan.
+- **Drag & drop** de nodos (mousedown → document mousemove → mouseup). `drag.moved` previene clic fantasma post-drag.
+- **Zoom:** `Ctrl/Cmd + rueda` o pinch de trackpad. Sensibilidad escalada: `mag = min(abs(deltaY),100)/100`, factor = 1+mag*0.08. Clamp 0.15–4x.
+- **Pan:** rueda sin modificador desplaza el canvas. Botón medio también hace pan.
 - **Botones de zoom** (+/−/⌂) en esquina inferior derecha.
 - **Modo conectar** — clic en nodo origen → clic en destino → crea conexión.
-- **Teclado:** `Delete`/`Backspace` elimina la selección activa. `Escape` cancela `cFrom` o el modo conectar.
+- **Teclado:** `Delete`/`Backspace` elimina la selección activa. `Escape` cancela `cFrom`.
 
 ### Nodos
 
 - Rectángulos 170×58px, borde redondeado, barra de acento izquierda coloreada por categoría.
-- **LOD adaptativo:** si `NH * S.vs < 20px`, se ocultan las etiquetas y se centra el ícono. Si `NH * S.vs < 10px`, solo se muestra el rectángulo coloreado.
-- Selección visual (borde blanco grueso cuando `S.sel === 'n:id'`).
-- Badge SW en subworkflows.
-- **Doble clic:** en subworkflow abre el modal de contrato JSON. En cualquier otro nodo, abre `prompt()` para editar la etiqueta.
-- **Tooltip:** al hacer hover 400ms, aparece un `<div id="node-tip">` en `position:fixed` con la descripción del componente. Se posiciona a la derecha del nodo si hay espacio, a la izquierda si no.
+- **LOD adaptativo:** `NH*S.vs < 10px` → solo rect. `< 20px` → rect + ícono centrado. `≥ 20px` → texto completo.
+- **Indicadores en nodo** (puntos circulares):
+  - **Punto rosa** (bottom-left): el nodo tiene prompt definido (`promptData.system` o `promptData.user`)
+  - **Punto verde** (bottom-right): el nodo recibe datos de un nodo de tipo fuente/datos/modelo
+- **Doble clic:**
+  - Nodos PE_TYPES (`cerebro`, `llm`, `llm_chain`, `clasificador`, `agente_esp`, `orquestador`) → abre editor de prompts
+  - Subworkflows → abre modal de contrato JSON
+  - Resto → `prompt()` para renombrar
+- **Tooltip:** hover 400ms → `<div id="node-tip">` con descripción del componente.
 
 ### Conexiones
 
-- Bezier cúbicos via `connGeom()`. Devuelve `{d, p0, p1, p2, p3}`.
-- El punto medio del badge usa `bezMid(p0,p1,p2,p3)` — el punto real al t=0.5 de la curva, no el promedio de los extremos.
+- Bezier cúbicos via `connGeom()`.
+- Punto medio del badge usa `bezMid()` (t=0.5 real, no promedio de extremos).
 - Offset de 12px para conexiones bidireccionales.
 - Línea punteada para conexiones de categoría `obs` (Langfuse).
-- **Clic en una conexión la selecciona** (stopPropagation evita que el evento burbujee hasta el listener de `#cv`). Una vez seleccionada, `delSel()` la elimina.
-- **Badge de contrato** en el punto medio: si la conexión tiene campos definidos, muestra sus nombres; si no, muestra `+ contrato`. Clic abre `openContractEditor()`.
+- **Badge de contrato** en el punto medio: muestra nombres de campos o `+ contrato`. Clic abre `openContractEditor()`.
+
+### Editor de contratos (conexiones)
+
+`openContractEditor(connId)` abre el modal `#ov-contract` con:
+
+**Presets** (11 bloques semánticos predefinidos en `CONTRACT_PRESETS`):
+- `telegram_in` — campos del trigger de Telegram
+- `normalizado` — campos normalizados (telegram_id, mensaje, canal, timestamp)
+- `con_intent` — agrega campo `intent`
+- `con_memoria` — agrega campo `historial`
+- `con_rag` — agrega campo `contexto_rag`
+- `respuesta_llm` — campos de salida del LLM
+- `metadata_rag` — campos para ingesta RAG (fuente, titulo, fecha_ingesta, url)
+- `perfil_usuario` — campos de perfil de usuario
+- `langfuse` — campos para trazas de Langfuse
+- `solicitud_agenda` — campos de formulario web (tipo, slot, nombre, correo, telefono, session_id)
+- `slots_cdmx` — resultado del Code CDMX (slots array, resumen, mensaje)
+
+**Acciones:**
+- **↑ Heredar anterior** (`inheritFields`) — copia los campos de la conexión que llega al nodo origen. Propaga contratos a lo largo del flujo.
+- **↓ Salida típica** (`suggestNodeOutput`) — sugiere campos de salida típicos del nodo origen según su tipo. Transforma `$json.campo` → `$('Label').item.json.campo` para referencia explícita.
+
+`NODE_OUTPUT_HINTS` — mapeo de 30+ tipos de nodo a sus campos de salida típicos, incluyendo:
+- `code_node`: chunks, texto, metadata, **slots, resumen** (para agenda)
+- `gcal_in`: evento (summary), inicio (start.dateTime), descripcion
+- `registro_usu`: usuario_existe, session_id
+- `schedule`: timestamp, timezone
+- etc.
+
+### Editor de prompts (nodos LLM/agente)
+
+`openPromptEditor(nodeId)` abre el modal `#ov-prompt` para nodos PE_TYPES con:
+- **Etiqueta del nodo** — editable
+- **Descripción** + botón "✦ Generar" — auto-genera system+user prompt usando `PROMPT_TPL` según el tipo de nodo
+- **System Prompt** — textarea editable
+- **Chips de campos dinámicos** — botones para insertar expresiones n8n de los contratos entrantes. Usan `data-expr` attribute para seguridad (evita XSS con expresiones con comillas).
+- **User Prompt** — textarea editable con inserción de chips
+- **Preview** — muestra el prompt final con variables sustituidas
+- El prompt se guarda en `node.promptData = {system, user}`
+
+`PROMPT_TPL` — templates por tipo de nodo que generan `{system, user}`:
+- `cerebro` — sistema de asistente con campos dinámicos como variables del user prompt
+- `clasificador` — clasificador de intención con categorías de `S.wd.intents`
+- `agente_esp` — agente especializado con rol específico
+- `orquestador` — distribuidor de tareas a agentes
+- `llm` / `llm_chain` — cadena LLM simple
+
+### Prompt n8n — Generador
+
+`genN8NPrompt(mode)` — dos modos:
+- **`'paid'`** (Claude de paga): hace preguntas aclaratorias antes de generar (contratos, subworkflows, tablas Supabase, nodos de configuración)
+- **`'free'`** (Claude gratuito): genera el JSON directamente sin preguntas
+
+Contenido generado:
+- Stack técnico (n8n v2.1.4, Supabase, Qdrant, OpenRouter, timezone)
+- Reglas obligatorias (condicionales según el diagrama):
+  - `hasWebhook` → regla de Response Mode + header CORS en Respond to Webhook (no en trigger)
+  - `hasCalendar` → regla de Luxon timezone: `DateTime.fromISO(slot, {zone: 'America/Mexico_City'}).plus({minutes: 30}).toISO()`
+  - `hasSchedule` → regla de columna `recordatorio BOOLEAN` + reset en UPSERT
+- **Tabla de nombres exactos de nodos** — para que las expresiones `$('Nombre').item.json.campo` coincidan
+- **Sintaxis de expresiones n8n:**
+  - Nodo inmediato: `{{ $json.campo }}`
+  - Nodo específico: `{{ $('Nombre del Nodo').item.json.campo }}`
+- **Prompts definidos por nodo** — si el nodo tiene `promptData`, se incluye el system+user prompt exacto
+- **Tabla de contratos JSON** — si las conexiones tienen campos definidos
+- **Patrones clave** — SELECT EXISTS, UPSERT, information_schema, re-engagement SQL, Code CDMX (si hay Calendar)
+
+### Diagrama de secuencia (interactivo)
+
+- **Sort topológico (Kahn)** para el orden base de actores.
+- Actor virtual "Usuario" siempre primero.
+- `S.seqOrder` persiste el orden personalizado (null = topológico).
+- `S.seqHidden` excluye actores del diagrama.
+- **Drag de actores** — reordena `S.seqOrder` en tiempo real.
+- **Botón × (hover)** en cada actor — lo oculta (`seqHideActor`).
+- **Panel de info** (`renderSeqInfo`) al hacer clic en un actor:
+  - Label, tipo, descripción del componente
+  - Preview del system prompt si tiene `promptData`
+  - Campos de contratos entrantes y salientes con expresiones
+  - Botón "🧠 Editar prompts" (solo para PE_TYPES)
+  - Botón "✕ Ocultar" actor
+- **Controles** (`#seq-ctrls`): ⊕ Mostrar todos, ↺ Resetear orden, ≡ Campos (toggle)
+- **Campos en mensajes**: cuando `showSeqFields`, muestra nombres de campos bajo las flechas.
+- 39 pares de tipos con etiquetas predefinidas en `MSG_MAP` (español).
+- Flechas sólidas para llamadas, punteadas para retornos.
+- Export SVG del diagrama de secuencia.
 
 ### Guardar / Cargar diagrama
-
-Botones `⬇ Guardar` y `⬆ Cargar` en el toolbar.
 
 **Formato JSON guardado:**
 ```json
 {
   "v": 1,
-  "nodes": { ... },
+  "nodes": { ... },   // incluye promptData si fue definido
   "conns": { ... },
   "wd": { ... },
   "nc": 12,
@@ -225,37 +333,11 @@ Botones `⬇ Guardar` y `⬆ Cargar` en el toolbar.
 }
 ```
 
-**Validaciones al cargar:**
-- Debe tener campo `"v"`.
-- Tipos desconocidos se cargan como `custom` y el tipo original se preserva en `label`.
-- Conexiones con nodos que no existen en el JSON se descartan silenciosamente.
-- `nc` y `cc` se recalculan como `max(valor_guardado, max_id_encontrado + 1)` para evitar colisiones.
+Validaciones: campo `"v"` requerido, tipos desconocidos → `custom`, conexiones huérfanas descartadas.
 
 ### Mini-mapa
 
-`<div id="minimap">` en esquina inferior izquierda del canvas (sobre el status bar).
-- 160×100px fijo.
-- Los nodos se representan como rectángulos del color de su categoría.
-- El rectángulo azul violeta muestra el área actualmente visible.
-- Clic en el mini-mapa centra el viewport en esa posición del mundo.
-- Botón `▾` colapsa/expande. Cuando colapsado, la clase `mm-collapsed` oculta el SVG.
-- Se actualiza en `render()` y en `applyView()`.
-- `_mmView` guarda la proyección `{wr, s, ox, oy}` que `renderMinimap()` calcula, para que el listener de clic la reutilice.
-
-### Prompt n8n — Contratos JSON
-
-`genN8NPrompt()` incluye una sección `### Contratos JSON entre nodos` si hay conexiones con al menos un campo definido:
-- Tabla Markdown: Conexión | Campos que pasan
-- Si los campos tienen `ex` (expresión de ejemplo), se lista en un bloque posterior.
-
-### Diagrama de secuencia UML
-
-- Sort topológico (Kahn) para ordenar actores por categoría.
-- Siempre añade "Usuario" como primer actor virtual.
-- 39 pares de tipos con etiquetas predefinidas (español).
-- Flechas sólidas para llamadas, punteadas para retornos.
-- Export SVG del diagrama de secuencia.
-- Export PlantUML en el modal de texto. Las etiquetas de nodo escapan `"` a `'` para evitar PlantUML inválido.
+`<div id="minimap">` — 160×100px, colores de categoría, rectángulo de viewport, clic centra. Botón `▾` colapsa. Se actualiza en `render()` y `applyView()`.
 
 ### Export
 
@@ -263,44 +345,46 @@ Botones `⬇ Guardar` y `⬆ Cargar` en el toolbar.
 |-------|--------|
 | ⬇ Guardar | JSON del estado completo con campo `v:1` |
 | ⬆ Cargar | Input file oculto. Lee JSON, valida, restaura estado |
-| ↓ SVG | Descarga SVG recortado al contenido (viewBox al bounding box de nodos), independiente del zoom/pan activo |
+| ↓ SVG | Descarga SVG recortado al bounding box de nodos |
 | ↓ SVG Secuencia | Descarga SVG del diagrama de secuencia |
 | ⬡ Texto / Miro | Modal con Markdown de arquitectura + bloque PlantUML |
-| ⬡ Prompt n8n | Prompt completo para pegar en Claude (incluye arquitectura + contratos) |
+| ⬡ Prompt n8n | Modal con 2 botones de modo (paga/gratuito) + prompt generado |
 | 📋 SQL | Guía de meta-prompting SQL |
 
 ---
 
 ## 9. STACK TÉCNICO DEL PROGRAMA (M4)
 
-Lo que los participantes tienen instalado y que la herramienta refleja:
-
 ```
 n8n:        v2.1.4 (Docker, self-hosted, Windows)
 BD:         Supabase / PostgreSQL
 Vector DB:  Qdrant v1.14.1
 LLM:        OpenRouter → lmChatOpenRouter (nodo n8n)
-Modelo:     google/gemini-2.5-flash (principal), gemini-2.5-pro, GPT-4o, Claude, Llama
+Modelo:     google/gemini-2.5-flash (principal)
 Embeddings: gemini-embedding-001 (3072 dimensiones)
 Canal:      Telegram Bot (principal)
 Obs:        Langfuse (integración via REST API: Set → Code → HTTP Request con Basic Auth)
-Timezone:   America/Mexico_City — UTC-6 permanente sin horario de verano (México)
+Timezone:   America/Mexico_City — UTC-6 permanente sin horario de verano (desde 2023)
 ```
 
 ### Patrones de n8n documentados en la herramienta
 
 - **SELECT EXISTS** para verificar usuarios (siempre devuelve 1 fila boolean)
-- **UPSERT registro_usuarios** (INSERT ... ON CONFLICT DO UPDATE)
-- **Clasificador-first** — el agente clasifica intención ANTES de verificar usuario (routing vs personalización)
+- **UPSERT registro_usuarios** (INSERT ... ON CONFLICT DO UPDATE). Campos: `session_id TEXT PRIMARY KEY`, `primer_contacto TIMESTAMPTZ`, `ultima_interaccion TIMESTAMPTZ`, `status TEXT DEFAULT 'nuevo'`, `recordatorio BOOLEAN DEFAULT FALSE`
+- **TIMESTAMPTZ** — para todos los campos de tiempo. México = UTC-6 permanente. Comparaciones en UTC sin conversión (NOW() y stored son ambos UTC).
+- **Clasificador-first** — agente (NO LLM Chain), temperature 0.1, maxTokens 20. Clasifica intención ANTES de verificar usuario.
 - **No Switch node** — usar IF encadenados (Switch causa error de importación en v2.1.4)
 - **Postgres Chat Memory** — subnodo automático, tabla s2_test, session_key = chat.id
 - **Qdrant retrieve-as-tool** — topK: 5, metadata.* prefix, gemini-embedding-001
 - **Splitter chunkSize 10000** — evita doble-splitting en ingesta RAG
 - **Subworkflow trigger** — executeWorkflowTrigger + executeWorkflow + Set (contrato)
 - **Langfuse REST API** — 3 nodos: Set → Code (base64) → HTTP Request (Basic Auth)
-- **Re-engagement** — Schedule → query inactivos → Loop (batch 1) → Code → Telegram → UPDATE recordatorio
-- **information_schema** — siempre antes de meta-prompting SQL
-- **TIMESTAMPTZ** — para todos los campos de tiempo; México = UTC-6 permanente
+- **Re-engagement** — Schedule → query inactivos (WHERE ultima_interaccion < NOW() - INTERVAL '...' AND recordatorio = FALSE) → Loop (batch 1) → Code → Telegram → UPDATE recordatorio=TRUE
+- **information_schema** — siempre antes de meta-prompting SQL (obtener esquema real para contexto)
+- **Google Calendar — timezone Luxon**: `DateTime.fromISO($json.body.slot, {zone: 'America/Mexico_City'}).plus({minutes: 30}).toISO()` para campo `end`. Sin `{zone}`, Luxon interpreta ISO local como UTC → evento 6h adelantado.
+- **Code CDMX (slots)** — trabajo determinista, NO usar LLM para cálculo de disponibilidad. UTC_OFFSET_HOURS = -6, slots :00/:30, 9am–5pm, `getDay() === 0 || 6` para excluir fines de semana, convertir CDMX→UTC para comparar con eventos, devolver ISO local sin Z.
+- **Webhook con CORS** — header `Access-Control-Allow-Origin: *` va en el nodo "Respond to Webhook", NO en el Webhook trigger (responseMode=responseNode ignora headers del trigger).
+- **Expresiones n8n**: nodo inmediato = `{{ $json.campo }}`; nodo específico = `{{ $('Nombre del Nodo').item.json.campo }}`. Nombres de nodo sensibles a espacios y mayúsculas.
 
 ---
 
@@ -311,8 +395,11 @@ Timezone:   America/Mexico_City — UTC-6 permanente sin horario de verano (Méx
 - Render siempre redibuja todo desde estado (innerHTML = '' + reconstrucción). No hay diff.
 - IDs de nodos: `n1`, `n2`, ... IDs de conexiones: `c1`, `c2`, ...
 - CSS con variables en `:root` (`--bg`, `--sur`, `--sur2`, `--bdr`, `--txt`, `--muted`, `--acc`, `--accl`, `--entrada`, `--proceso`, `--mem`, `--rag`, `--modelo`, `--salida`, `--obs`, `--datos`).
-- `escA(s)` — usar siempre para interpolar valores de usuario en atributos `value="..."` de plantillas de string. Evita corrupción del markup si un nombre de campo contiene comillas.
-- Inputs en modales (contratos, subworkflow) **deben** usar `escA()` en `value="${escA(f.n)}"`.
+- `escA(s)` — usar siempre para interpolar valores de usuario en atributos SVG/HTML. Escapa `&`, `"`, `<`.
+- Chips con expresiones n8n (que contienen comillas simples) usan el patrón `data-expr` + `this.dataset.expr` en el onclick para evitar XSS:
+  ```js
+  `<button data-expr="${expr.replace(/"/g,'&quot;')}" onclick="insertAtCursor('pe-user',this.dataset.expr)">${f.n}</button>`
+  ```
 
 ---
 
@@ -346,45 +433,33 @@ Timezone:   America/Mexico_City — UTC-6 permanente sin horario de verano (Méx
     <div id="minimap">               ← mini-mapa (encima del status, bottom-left)
       <svg id="mm-svg" 160×100>
       <button id="mm-toggle">
-  <div id="seq-wrap">                ← tab de secuencia UML
-    <svg id="seq-cv">
+  <div id="seq-wrap">                ← tab de secuencia UML interactiva
+    <div id="seq-ctrls">             ← botones: Mostrar todos | Resetear orden | Campos
+    <div id="seq-info">              ← panel de info del actor seleccionado
+    <div id="seq-svg-wrap">          ← SVG scrollable del diagrama
 </div>
 
 <div id="node-tip">                  ← tooltip de hover (position:fixed, fuera de #app)
-  <div class="tt-l">                 ← label del componente
-  <div class="tt-d">                 ← descripción del componente
 
-<!-- Modales: ov-wiz, ov-pric, ov-exp, ov-sw, ov-n8n, ov-contract, ov-sql -->
+<!-- Modales -->
+<div id="ov-wiz">     ← wizard (6 pasos + selector de plantillas)
+<div id="ov-pric">    ← tabla de precios de LLMs
+<div id="ov-exp">     ← export texto (Markdown + PlantUML)
+<div id="ov-sw">      ← editor de contrato de subworkflow
+<div id="ov-n8n">     ← prompt n8n (2 modos: paga/gratuito)
+<div id="ov-contract"> ← editor de contrato de conexión (presets + heredar + salida típica)
+<div id="ov-sql">     ← guía de meta-prompting SQL
+<div id="ov-prompt">  ← editor de prompts de nodo (system + user + chips dinámicos)
 
 <script>
-  const C = { ...componentes... }         // catálogo
-  const PAT = [ ...plantillas... ]        // 7 plantillas
-  const LLMS = [ ...pricing... ]          // tabla de pricing
-  const MSG_MAP = { ...etiquetas seq... } // 39 pares de etiquetas de secuencia
-  const S = { ...estado global... }       // estado mutable
-
-  // helpers: escA, svgEl, lodBucket, svgPt, applyView, zoom, resetView, contentBounds
-  // render: render, renderNodes, renderConns, renderStatus, renderMinimap, renderSeq
-  // viewport: applyView, zoom, resetView
-  // events: onNodeMD, onMM, onMU, onNodeClick, onNodeDbl, onConnClick, tipEnter, tipLeave, hideTip
-  // operations: addNode, addConn, delSel, clearAll, toggleConn
-  // connections: connGeom, bezMid
-  // minimap: toggleMinimap, renderMinimap
-  // palette: renderPal, addFromPal
-  // wizard: showWiz, renderWiz, buildFromWiz, toggleCh, toggleWB, toggleIntent, addCustomIntent
-  // export svg: doExpSVG, doExpSeqSVG
-  // export text: genMD, showExpMD, copyExp, genPlantUML
-  // n8n: showN8N, genN8NPrompt, copyN8N
-  // save/load: saveDiagram, loadDiagram
-  // contract: openContractEditor, renderContractFields, renderContractPreview, addContractField, saveContract
-  // memory: showMemPanel, hideMemPanel, MEM_TABLES
-  // subworkflow: openSW, renderSW, renderSWPre, saveSW, addSWF
-  // sequence: renderSeq, topoSort, genSeqMsgs, doExpSeqSVG
-  // pricing: showPric
-  // tabs: setTab
-  // keyboard: document keydown listener
-  // zoom/pan: initZoomPan, onPanMove, onPanEnd
-  // init: renderPal, renderWiz, show('ov-wiz'), initZoomPan, applyView
+  const C = { ...componentes... }           // catálogo de 35 tipos
+  const PAT = [ ...plantillas... ]          // 10 plantillas predefinidas
+  const LLMS = [ ...pricing... ]            // 17 modelos con precios
+  const MSG_MAP = { ...etiquetas seq... }   // 39 pares de etiquetas de secuencia
+  const CONTRACT_PRESETS = { ... }          // 11 presets de campos de contrato
+  const NODE_OUTPUT_HINTS = { ... }         // campos típicos de salida por tipo de nodo
+  const PROMPT_TPL = { ... }                // templates de prompt por tipo de nodo PE
+  const S = { ...estado global... }         // estado mutable
 </script>
 ```
 
@@ -395,30 +470,24 @@ Timezone:   America/Mexico_City — UTC-6 permanente sin horario de verano (Méx
 Al iniciar una sesión en Claude Code:
 
 1. Este archivo es el contexto completo del proyecto.
-2. El único archivo fuente es `arquitectura-agentes7.html`.
+2. El único archivo fuente editable es `index.html`.
 3. Para probar cambios: abrir el archivo directamente en Chrome (no requiere servidor).
 4. Workflow típico:
-   - Leer este contexto y el HTML completo antes de cualquier modificación.
+   - Leer este contexto antes de cualquier modificación.
    - Identificar la sección del código a modificar.
-   - Hacer cambios quirúrgicos con `str_replace` / targeted edits.
-   - Verificar sintaxis con `node --check`.
-   - Ejecutar smoke tests con jsdom si el cambio afecta lógica de estado.
+   - Hacer cambios quirúrgicos con ediciones dirigidas.
+   - Los JSONs de referencia son ejemplos del flujo real para orientar contratos y patrones.
 5. Siempre mantener el archivo como single-file.
-6. Las IDs de los elementos HTML son semánticas y se referencian desde JS — no renombrar sin actualizar JS también.
-
-**Para tests rápidos con jsdom:**
-- Las variables `const` globales no se exponen directamente en `window`; acceder con `w.eval('S')`, `w.eval('PAT')`, `w.eval('C')`, etc.
-- `w.applyPat(i)`, `w.buildFromWiz()`, `w.genN8NPrompt()`, etc. sí son accesibles directamente.
-- Antes de ejecutar, definir stubs: `w.confirm = () => true`, `w.prompt = () => 'valor'`, `w.URL.createObjectURL = () => 'blob:x'`.
+6. Las IDs de los elementos HTML son semánticas — no renombrar sin actualizar JS también.
 
 ---
 
 ## 14. PENDIENTES / MEJORAS IDENTIFICADAS
 
 ### Funcionalidad faltante
-- [ ] **Modo touch/tablet** — zoom/pan con pinch y dos dedos (el pinch de trackpad ya funciona via `ctrlKey+wheel`; falta touch real)
+- [ ] **Modo touch/tablet** — zoom/pan con pinch y dos dedos reales (trackpad ya funciona via `ctrlKey+wheel`)
 - [ ] **Undo/redo** — historial de estados (snapshot de `S.nodes` + `S.conns` antes de cada mutación)
-- [ ] **Snap to grid** — alinear nodos a una cuadrícula de 10px al soltar
+- [ ] **Snap to grid** — alinear nodos a cuadrícula de 10px al soltar
 - [ ] **Autoarrange** — reordenar automáticamente por capas (usando el sort topológico que ya existe)
 - [ ] **Búsqueda en paleta** — input de filtrado de componentes
 
@@ -437,9 +506,13 @@ Al iniciar una sesión en Claude Code:
 | 3 | Tab de Secuencia UML: sort topológico, lifelines, mensajes predefinidos por par de tipos, export PlantUML |
 | 4 | Bug fix display:block en tab Secuencia, sincronía de render al cambiar de tab |
 | 5 | Wizard expandido a 6 pasos: clasificador, registro_usuarios, timezone, re-engagement; 7 componentes nuevos; Google Workspace; badge de contrato JSON en conexiones; editor de contrato; panel de memoria SQL; guía meta-prompting SQL; botón Prompt n8n; zoom/pan |
-| 6 | Fix sensibilidad de zoom (1.12 → 1.06) |
-| 7 | Auditoría completa + fixes P0/P1 + 5 features nuevas: save/load JSON, rename por dblclick, contratos en prompt n8n, tooltip, mini-mapa. Fixes: stopPropagation en clic de conexiones (P0-1), llm_chain en catálogo (P0-2), clic fantasma post-drag (P1-1), export SVG independiente de zoom/pan (P1-2), clearAll y delSel limpian cFrom y mem-panel (P1-3/P1-5), midpoint bezier real al t=0.5 (Fix 1), LOD adaptativo por zoom (Fix 2), overflow:hidden + rueda=pan + Ctrl+rueda=zoom (Fix 3/4), escA() para inputs con valores de usuario (P2) |
+| 6 | Fix sensibilidad de zoom (1.12 → escala suave max 8% por 100px deltaY) |
+| 7 | Auditoría completa + fixes P0/P1 + 5 features: save/load JSON, rename por dblclick, contratos en prompt n8n, tooltip, mini-mapa. Fixes: stopPropagation en clic de conexiones, llm_chain en catálogo, clic fantasma post-drag, export SVG independiente de zoom/pan, clearAll y delSel limpian cFrom y mem-panel, midpoint bezier real t=0.5, LOD adaptativo, overflow:hidden + rueda=pan + Ctrl+rueda=zoom, escA() para inputs |
+| 8 | Prompt n8n en dos modos (Claude paga vs gratuito) con preguntas aclaratorias o generación directa; regla de webhook con Response Mode; sistema de contratos completo: 9 presets semánticos, heredar upstream, salida típica (NODE_OUTPUT_HINTS con 30+ tipos); nueva plantilla Ingesta RAG; sintaxis $('Node').item.json.campo para referencias no-inmediatas; tabla de nombres de nodos en prompt generado |
+| 9 | Editor de prompts para nodos LLM/agente (modal ov-prompt): descripción → auto-gen con PROMPT_TPL, system/user textarea, chips dinámicos de campos con data-expr para seguridad, preview en tiempo real, punto rosa indicador en nodo; prompts incluidos en el prompt n8n |
+| 10 | Diagrama de secuencia interactivo: drag para reordenar actores (S.seqOrder), botón × hover para ocultar (S.seqHidden), controles (Mostrar todos / Resetear orden / toggle Campos), campos de contrato bajo flechas (S.showSeqFields), panel de info al clic (renderSeqInfo) con prompts + contratos + botón editar, handlers onSeqMM/onSeqMU |
+| 11 | 2 nuevas plantillas: Agenda Web (Webhook → Switch 3 ramas: Calendar/Gmail/Supabase) y Re-engagement (Schedule → Supabase → Code → Telegram → Supabase); 2 nuevos presets de contrato: solicitud_agenda y slots_cdmx; CODE_node hints con slots/resumen; reglas condicionales en genN8NPrompt: calendarRule (Luxon timezone CDMX) y scheduleRule (recordatorio BOOLEAN); patrón Code CDMX en sección "Patrones clave" del prompt |
 
 ---
 
-*Generado en julio 2026 para uso en Claude Code. Actualizar cuando cambien features o convenciones.*
+*Actualizado julio 2026. Archivo de referencia para sesiones de Claude Code y Claude.ai.*
