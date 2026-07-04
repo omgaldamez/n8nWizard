@@ -2026,6 +2026,9 @@ function onSeqMU(){
 }
 
 // ── SEQ CONTROLS ──
+function updateNodeDesc(id,val){
+  if(S.nodes[id]) S.nodes[id].desc=val;
+}
 function seqHideActor(id){
   S.seqHidden.add(id);
   if(S.seqSel===id){S.seqSel=null;renderSeqInfo(null);}
@@ -2145,8 +2148,9 @@ function genNarrative(){
         const fNames=msg.fields.map(f=>f.n).join(', ');
         para+=` Transfiere los campos: ${fNames}.`;
       }
-      // Add context from prompt/rag data
-      if(nd.promptData?.desc) para+=` Función declarada: "${nd.promptData.desc}".`;
+      // Add context from node description / prompt data
+      if(nd.desc) para+=` ${nd.desc}.`;
+      else if(nd.promptData?.desc) para+=` Función declarada: "${nd.promptData.desc}".`;
       if(nd.ragData?.collection) para+=` Consulta la colección RAG "${nd.ragData.collection}" (top ${nd.ragData.topk||5}).`;
       lines.push(para);
       step++;
@@ -2196,6 +2200,13 @@ function renderSeqInfo(id){
 
   let html=`<h4 style="color:${cp.col||'#F9FAFB'}">${cp.ic||''} ${lbl}</h4>
     <div class="si-sub">${isUser?'Actor virtual (usuario final)':cp.l+(cp.cat?` · ${cp.cat}`:'')}</div>`;
+
+  // Per-node description
+  if(!isUser){
+    const curDesc=escA(nd?.desc||'');
+    html+=`<div class="si-sec">Descripción del nodo</div>
+      <textarea id="si-node-desc" rows="2" style="width:100%;background:var(--bg);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);font-size:11px;font-family:system-ui,sans-serif;padding:5px 7px;resize:none;line-height:1.4" placeholder="¿Qué hace este nodo? (alimenta el prompt y los stickies)" oninput="updateNodeDesc('${id}',this.value)">${curDesc}</textarea>`;
+  }
 
   // Prompt data
   if(nd?.promptData?.system){
@@ -2349,7 +2360,7 @@ function genN8NPrompt(mode){
     arch+=`### ${v}\n`;
     bycat[k].forEach(n=>{
       const cp=C[n.type]||C.custom;
-      arch+=`- **${n.label||cp.l}** (${cp.d})\n`;
+      arch+=`- **${n.label||cp.l}** (${cp.d})${n.desc?` — ${n.desc}`:''}\n`;
     });
     arch+='\n';
   });
@@ -3265,6 +3276,7 @@ function loadDiagram(file){
       if(nd.label) nodes[id].label=nd.label;
       else if(!known) nodes[id].label=String(nd.type);
       if(nd.swData) nodes[id].swData=nd.swData;
+      if(nd.desc) nodes[id].desc=nd.desc;
       const m=/^n(\d+)$/.exec(id); if(m) maxN=Math.max(maxN,+m[1]);
     }
     const conns={};
