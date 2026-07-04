@@ -2622,7 +2622,41 @@ Al final incluir un sticky canvas master (color 6) con:
 
 ---
 
-*Generado con n8nWizard — Diseñador de Arquitecturas de Agentes IA*
+${mode==='paid'?`## Guía de configuración (Markdown — entregar después del JSON)
+
+Después de generar el JSON del flujo, genera también una guía de configuración completa en Markdown con el siguiente formato y bloques en orden. Usa encabezados \`##\` para cada bloque y pasos numerados dentro de cada uno.
+
+### Bloque 1 — Descripción del flujo
+Una o dos frases que expliquen qué hace el agente, para quién y en qué contexto.
+
+### Bloque 2 — Pre-requisitos
+Lista de cuentas, accesos y servicios necesarios antes de importar (ej. cuenta Telegram Bot, proyecto Supabase, instancia n8n activa, OpenRouter API key, instancia Qdrant si aplica).
+
+### Bloque 3 — Credenciales a configurar en n8n
+Tabla: | Credencial | Tipo en n8n | Dato necesario |
+Una fila por cada credencial que usan los nodos del flujo (Telegram, Supabase, OpenRouter, Google, Langfuse, etc.).
+
+### Bloque 4 — Tablas Supabase
+Por cada tabla que el flujo use o cree, incluir:
+- Nombre de la tabla
+- SQL de creación completo y listo para ejecutar en el SQL Editor de Supabase
+- Breve explicación de para qué sirve cada columna clave
+
+### Bloque 5 — Colecciones Qdrant (si aplica)
+Por cada colección RAG:
+- Nombre de la colección
+- Comando \`curl\` o snippet Python/JS para crearla con los parámetros correctos (vector size, distance metric)
+- Campo de metadata obligatorio a indexar
+
+### Bloque 6 — Importación e instalación paso a paso
+Pasos numerados desde cero: cómo importar el JSON en n8n, qué credenciales asignar a qué nodos, qué variables de entorno configurar, qué nodos ejecutar en orden (ej. nodos de setup desconectados primero).
+
+### Bloque 7 — Pruebas y validación
+Lista de pruebas mínimas para confirmar que el flujo funciona: qué enviar, qué respuesta esperar, qué revisar en los logs de n8n y en Supabase/Qdrant.
+
+---
+
+`:''}*Generado con n8nWizard — Diseñador de Arquitecturas de Agentes IA*
 *PCIA M4 · CENTRO Educación Continua · Omar Galdámez · linkedin.com/in/omargaldamezc*
 `;
 }
